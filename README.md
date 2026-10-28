@@ -21,15 +21,17 @@ und alles andere ist maximal zwei Tipps entfernt.
 - **Termine** — Monatskalender mit Farbpunkten, Tagesfilter, Wiederholungen
   (wöchentlich/monatlich/jährlich inkl. Geburtstage mit Countdown)
 - **Finanzen** — Saldo, Monatsbudget mit Ampel, Monatsend-Prognose, interaktive
-  Geldfluss-Blasen, 6-Monats-Trend, Fixposten/Abo-Verwaltung mit **Ein-Knopf-Buchung**
+  Monatskugel mit klarer Kategorie-Rangliste, 6-Monats-Trend, Fixposten/Abo-Verwaltung mit **Ein-Knopf-Buchung**
 - **Aufgaben** — Fristen mit Countdown, Routinen (täglich → jährlich, erzeugen beim Abhaken
   die nächste Fälligkeit), Wischgesten, Snooze
 - **Notizen** — mit Pins
 - **Schnelleingabe** — eine Zeile tippen oder diktieren → Tab + Felder werden vorausgefüllt.
   Die deutsche Erkennung läuft **komplett lokal und offline**; das Ergebnis erscheint
   vor dem Speichern als prüfbare Vorschau.
-- **Geldfluss-Monatskugel** — Gesamtsumme und Kategorien in einer großen Kugel;
-  Umschalter für Einnahmen/Ausgaben, Tipp filtert die Buchungsliste.
+- **Einnahmen-Erkennung** — Gewinn, Gehalt, Einnahmen, Verkauf, Rente, +500 usw. landen
+  als Einnahme; typische Ausgaben wie Miete, Einkauf oder Rechnung bleiben Ausgaben.
+- **Geldfluss-Monatskugel** — große Summenkugel als Anker, darunter proportionale
+  Kategoriezeilen mit Namen, Betrag und Anteil; Tipp filtert die Buchungsliste.
 - **Backup-Erinnerung** — zeigt, wenn Daten nur auf dem Gerät liegen und die letzte Sicherung fehlt oder älter als 14 Tage ist
 - **Automatisches Sicherheitsnetz** — nach jeder Änderung entsteht lokal eine zusätzliche Kopie; bei leerer Hauptdatenbank lässt sie sich direkt wiederherstellen
 - **Dauerhafter Speicher** — Status in den Einstellungen, Anfrage beim Browser und Hinweis auf Vorschau-Adressen
@@ -95,5 +97,5 @@ Das hat eine wichtige Konsequenz:
 
 ## Projekt-Status
 
-**v18 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+**v19 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
 Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).
