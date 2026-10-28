@@ -32,6 +32,8 @@ interface Props {
   onSearch: () => void
   onRefresh: () => void
   onRestoreRecovery?: () => void
+  /** Schnellerfassung für einen bestimmten Tag aus dem Wochenpuls. */
+  onAddEventAt?: (date: string) => void
 }
 
 function isToday(iso: string | null): boolean {
@@ -90,7 +92,7 @@ function ProgressRing({ pct, label }: { pct: number; label: string }) {
 }
 
 /** Heute-Fokus: die 5-Sekunden-Übersicht – Hero → Rot → Heute → 7 Tage → Geld → Notizen. */
-export function HeuteView({ events, tasks, transactions, notes, loading, error, onNavigate, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd, onBookFixed, bookingId = null, onSearch, onRefresh, onRestoreRecovery }: Props) {
+export function HeuteView({ events, tasks, transactions, notes, loading, error, onNavigate, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd, onBookFixed, bookingId = null, onSearch, onRefresh, onRestoreRecovery, onAddEventAt }: Props) {
   const today = new Date()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const lastBackupAt = useLastBackupAt()
@@ -135,6 +137,21 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
   ]
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .slice(0, 5)
+
+  const weekLoads = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(dayStart, index)
+    const key = dayKey(date)
+    const eventCount = events.reduce((sum, event) => sum + eventOccurrences(event, date, date).length, 0)
+    const taskCount = tasks.filter(
+      (task) => !task.done && task.dueDate && dayKey(new Date(task.dueDate)) === key
+    ).length
+    return {
+      date,
+      key,
+      count: eventCount + taskCount,
+      weekday: new Intl.DateTimeFormat('de-DE', { weekday: 'short' }).format(date).replace('.', ''),
+    }
+  })
 
   const pinned = notes.filter((n) => n.pinned)
   const openCount = tasks.filter((t) => !t.done).length
@@ -330,6 +347,65 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
               {progressTotal > 0 && <ProgressRing pct={progressPct} label={`${doneToday}/${progressTotal}`} />}
             </div>
           </section>
+
+          {!loading && !isCompletelyEmpty && (
+            <section
+              aria-label="Woche im Überblick"
+              className="animate-rise mt-3 rounded-2xl border border-border bg-card p-3"
+              style={{ animationDelay: '80ms' }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />
+                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">Woche</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('termine')}
+                  className="hit inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold text-stone-500 transition-colors hover:text-foreground"
+                >
+                  Kalender
+                  <ChevronRight className="h-3 w-3" aria-hidden />
+                </button>
+              </div>
+              <div className="mt-1.5 grid grid-cols-7 gap-1">
+                {weekLoads.map((day, index) => {
+                  const isToday = index === 0
+                  const hasItems = day.count > 0
+                  return (
+                    <button
+                      key={day.key}
+                      type="button"
+                      onClick={() => onAddEventAt?.(day.key)}
+                      disabled={!onAddEventAt}
+                      aria-label={`${day.weekday}, ${day.date.getDate()}. ${hasItems ? `${day.count} ${day.count === 1 ? 'Eintrag' : 'Einträge'}` : 'frei'}. Termin hinzufügen`}
+                      title={`Termin am ${day.weekday}, ${day.date.getDate()}. hinzufügen`}
+                      className="group flex min-h-[50px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1 transition-colors hover:bg-white/[0.04] disabled:opacity-60"
+                    >
+                      <span className={cn('text-[9px] font-semibold uppercase tracking-wide', isToday ? 'text-brand' : 'text-stone-500')}>
+                        {day.weekday}
+                      </span>
+                      <span
+                        className={cn(
+                          'flex items-center justify-center rounded-full border text-[11px] font-bold tabular-nums transition-transform group-hover:scale-105',
+                          isToday
+                            ? 'h-7 w-7 border-brand/60 bg-brand/20 text-brand'
+                            : hasItems
+                              ? 'h-6 w-6 border-white/15 bg-white/[0.06] text-foreground'
+                              : 'h-6 w-6 border-dashed border-border text-stone-600'
+                        )}
+                      >
+                        {hasItems ? day.count : '+'}
+                      </span>
+                      <span className={cn('text-[9px] tabular-nums', isToday ? 'text-brand/80' : 'text-stone-600')}>
+                        {day.date.getDate()}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          )}
 
           {showInstallHint && (
             <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-brand/40 bg-brand/10 p-3.5">
