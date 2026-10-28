@@ -34,6 +34,7 @@ und alles andere ist maximal zwei Tipps entfernt.
 - **Automatisches Sicherheitsnetz** — nach jeder Änderung entsteht lokal eine zusätzliche Kopie; bei leerer Hauptdatenbank lässt sie sich direkt wiederherstellen
 - **Dauerhafter Speicher** — Status in den Einstellungen, Anfrage beim Browser und Hinweis auf Vorschau-Adressen
 - **Rückgängig** — Löschen und Fixposten-Buchen zeigen einen Rückgängig-Toast
+- **Aufräumen** — erledigte Aufgaben lassen sich in einem Schritt endgültig entfernen; offene Aufgaben und Notizen bleiben erhalten
 - **Globale Suche**, **Duplizieren**, **JSON-Backup Export/Import**, **CSV-Export**
 - **PWA** — installierbar, offline nutzbar, Homescreen-Shortcuts, App-Badge,
   3 Akzentfarben (Gold/Kupfer/Salbei)
@@ -94,5 +95,5 @@ Das hat eine wichtige Konsequenz:
 
 ## Projekt-Status
 
-**v17 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+**v18 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
 Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).
