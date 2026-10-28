@@ -28,8 +28,8 @@ und alles andere ist maximal zwei Tipps entfernt.
 - **Schnelleingabe** — eine Zeile tippen oder diktieren → Tab + Felder werden vorausgefüllt.
   Die deutsche Erkennung läuft **komplett lokal und offline**; das Ergebnis erscheint
   vor dem Speichern als prüfbare Vorschau.
-- **Geldfluss-Blasen** — Kategorien werden nach Höhe zu Blasen; ein Tipp filtert
-  die Buchungsliste und springt direkt dorthin.
+- **Geldfluss-Monatskugel** — Gesamtsumme und Kategorien in einer großen Kugel;
+  Umschalter für Einnahmen/Ausgaben, Tipp filtert die Buchungsliste.
 - **Backup-Erinnerung** — zeigt, wenn Daten nur auf dem Gerät liegen und die letzte Sicherung fehlt oder älter als 14 Tage ist
 - **Rückgängig** — Löschen und Fixposten-Buchen zeigen einen Rückgängig-Toast
 - **Globale Suche**, **Duplizieren**, **JSON-Backup Export/Import**, **CSV-Export**
@@ -92,5 +92,5 @@ Das hat eine wichtige Konsequenz:
 
 ## Projekt-Status
 
-**v15 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+**v16 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
 Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).

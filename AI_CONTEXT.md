@@ -1,6 +1,6 @@
 # Die Zentrale — Projekt-Kontext (KI-Handoff)
 
-> **Stand:** v15 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
+> **Stand:** v16 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
 > Es gibt keinen Server, keine API-Routen, kein Prisma/SQLite und keine Cloud.
 
 ## 1. Was ist die App?
@@ -61,7 +61,7 @@ src/components/zentrale/
   ParsedPreview.tsx       prüfbare Chips für die lokale Schnelleingabe
   ImportSheet.tsx         JSON-Backup importieren
   MonthCalendar.tsx       Monatsraster
-  MoneyFlow.tsx           interaktive Kategorien-Blasen + Filter
+  MoneyFlow.tsx           Monatskugel mit Kategorie-Blasen + Filter
   TrendChart.tsx          6-Monats-Verlauf
   rows.tsx                Zeilen + Wischgesten
   forms.tsx               4 Formulare
@@ -78,7 +78,7 @@ src/lib/zentrale/
 
 public/
   manifest.webmanifest    PWA-Manifest + Shortcuts
-  sw.js                   Service Worker (CACHE v15)
+  sw.js                   Service Worker (CACHE v16)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 
@@ -140,10 +140,12 @@ Formular bleiben danach weiterhin möglich.
 ### Geldfluss
 
 `MoneyFlow` fasst die gebuchten Buchungen des gewählten Monats je Kategorie
-zusammen. Die Blasengröße folgt dem Anteil an Einnahmen bzw. Ausgaben; ein Tipp
-setzt den Kategoriefilter, scrollt zu den Buchungen und lässt sich dort wieder
-lösen. Geplante zukünftige Einmal-Buchungen zählen wie in den Summen erst nach
-dem Buchen.
+zusammen. Die Gesamtsumme steht in einer großen Monatskugel, die Kategorien
+liegen gleichmäßig verteilt als kleinere Blasen darin; der Ring zeigt die
+Anteile. Ein Umschalter wechselt zwischen Einnahmen und Ausgaben. Ein Tipp auf
+Blase oder Legende setzt den Kategoriefilter, scrollt zu den Buchungen und lässt
+sich dort wieder lösen. Geplante zukünftige Einmal-Buchungen zählen wie in den
+Summen erst nach dem Buchen.
 - `quickparse.ts` erkennt deutsche Beträge, Einnahmen, relative Daten, Wochentage,
   Wiederholungen und Kategorien — vollständig offline.
 - Es gibt keinen KI-Fallback und keinen Server mehr. Wenn die lokale Erkennung scheitert,
