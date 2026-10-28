@@ -1,9 +1,11 @@
 # Die Zentrale
 
 > Persönliche Organisations-App: **Termine · Finanzen · Aufgaben · Notizen** — eine App,
-> eine Farblogik, ein täglicher Loop. Mobile-first PWA, Dark-Only, keine Cloud, keine Demo-Daten.
+> eine Farblogik, ein täglicher Loop. Mobile-first PWA, Dark-Only, **komplett lokal**.
 
-**→ Neu im Projekt (ob Mensch oder KI)? Lies zuerst [`AI_CONTEXT.md`](AI_CONTEXT.md) — dort ist der komplette Stand dokumentiert: Features, Architektur, Datenmodell, Design-System, Kernlogik, QA-Konventionen und alle bewussten Design-Entscheidungen.**
+**Die App läuft vollständig im Browser.** Es gibt keinen Server, keine API, keine Cloud,
+keine Anmeldung und keine Datenbank außerhalb deines Geräts. Alle Einträge liegen in
+**IndexedDB** auf dem Handy und bleiben auch offline verfügbar.
 
 ## Warum „Die Zentrale"?
 
@@ -14,52 +16,71 @@ und alles andere ist maximal zwei Tipps entfernt.
 
 ## Features
 
-- **Heute** — Hero-Karte mit Tagesbegrüßung, Fortschrittsring, Chips (Termine/Aufgaben),
-  Überfällig-Sektion, Finanz-Snapshot
+- **Heute** — Hero-Karte mit Tagesbegrüßung, Fortschrittsring, Chips, Überfällig-Sektion,
+  Finanz-Snapshot
 - **Termine** — Monatskalender mit Farbpunkten, Tagesfilter, Wiederholungen
   (wöchentlich/monatlich/jährlich inkl. Geburtstage mit Countdown)
 - **Finanzen** — Saldo, Monatsbudget mit Ampel, Monatsend-Prognose, Kategorie-Donut,
-  6-Monats-Trend, Fixposten/Abo-Verwaltung mit **Ein-Knopf-Buchung** („✓ Buchen" bucht heute
-  und schiebt die nächste Fälligkeit automatisch weiter)
-- **Aufgaben** — Fristen mit Countdown, Routinen (täglich → jährlich, spawnen beim Abhaken
-  die nächste Fälligkeit), Wischgesten (rechts = erledigt, links = löschen), Snooze
+  6-Monats-Trend, Fixposten/Abo-Verwaltung mit **Ein-Knopf-Buchung**
+- **Aufgaben** — Fristen mit Countdown, Routinen (täglich → jährlich, erzeugen beim Abhaken
+  die nächste Fälligkeit), Wischgesten, Snooze
 - **Notizen** — mit Pins
-- **Schnelleingabe** — eine Zeile tippen oder 🎤 diktieren → Tab + Felder werden
-  vorausgefüllt. Die lokale deutsche Erkennung funktioniert **auch ohne KI/Netz**; die KI
-  verfeinert nur, wenn konfiguriert. Erkennt u. a. Beträge, Einnahmen, relative Daten und
-  Wiederholungen. Dazu Eingabe-Merker (letzte Buchungstitel als Chips)
-- **Rückgängig** — Löschen und das Buchen eines Fixpostens zeigen 8 s lang einen
-  „Rückgängig"-Toast (Letzteres setzt auch die Fälligkeit zurück)
+- **Schnelleingabe** — eine Zeile tippen oder diktieren → Tab + Felder werden vorausgefüllt.
+  Die deutsche Erkennung läuft **komplett lokal und offline**.
+- **Rückgängig** — Löschen und Fixposten-Buchen zeigen einen Rückgängig-Toast
 - **Globale Suche**, **Duplizieren**, **JSON-Backup Export/Import**, **CSV-Export**
-- **PWA** — installierbar (iPhone 15 Pro optimiert: Safe-Areas, ≥44 pt Touch-Ziele, kein
-  iOS-Zoom), Homescreen-Shortcuts, App-Badge, **3 Akzentfarben** (Gold/Kupfer/Salbei)
+- **PWA** — installierbar, offline nutzbar, Homescreen-Shortcuts, App-Badge,
+  3 Akzentfarben (Gold/Kupfer/Salbei)
 
 ## Tech-Stack
 
-Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui · Prisma + SQLite ·
-npm/Bun · PWA (Service Worker) · z-ai-web-dev-sdk (KI-Parsing, server-only)
+Next.js 16 (statischer Export) · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui ·
+IndexedDB (native) · PWA (Service Worker)
 
-## Setup
+Kein Prisma, kein SQLite, kein API-Server.
+
+## Entwicklung
 
 ```bash
 npm install
-echo 'DATABASE_URL=file:/absoluter/pfad/zu/db/custom.db' > .env
-npm run db:generate
 npm run dev            # http://localhost:3000
 ```
 
-Die Datenbank startet **leer** (Willkommens-Screen) — alle Daten kommen von dir.
-Zum Zurücksetzen: `npm run seed` (leert die DB vollständig).
-`bun install` / `bun run dev` funktionieren genauso, sind aber nicht nötig.
+Die App startet leer mit dem Willkommens-Screen. Alle Daten kommen von dir.
 
-## Datenschutz
+Statischen Build erzeugen:
 
-Alle Daten liegen **ausschließlich lokal** in einer SQLite-Datei (`db/custom.db`, nicht im
-Repo). Keine Cloud, kein Account, keine Analyse. Die Schnelleingabe parst zuerst lokal; nur
-wenn eine KI konfiguriert ist, wird der eine Text-Schnipsel zusätzlich an das KI-Backend
-gesendet. Ohne KI-Konfiguration bleibt alles offline.
+```bash
+npm run build          # Ergebnis liegt in out/
+npm run start          # lokale Vorschau via npx serve
+```
+
+## Auf dem Handy installieren
+
+Die App braucht **HTTPS** (oder localhost), damit der Service Worker und die PWA-Installation
+funktionieren. Am einfachsten:
+
+1. Repository zu **Netlify** verbinden (kostenlos).
+2. Build-Kommando: `npm run build`
+3. Publish-Verzeichnis: `out`
+4. Die `netlify.toml` im Repo enthält diese Einstellungen bereits.
+5. Die `https://…netlify.app`-Adresse am Handy öffnen.
+6. iPhone/Safari: **Teilen → Zum Home-Bildschirm**; Android/Chrome: **App installieren**.
+
+Netlify deployt bei jedem Push auf `main` automatisch neu.
+
+## Datenschutz und Datensicherung
+
+Alle Daten bleiben im Browser des Geräts. Es gibt keine Cloud, kein Konto, keine Analyse.
+Das hat eine wichtige Konsequenz:
+
+- **Browserdaten löschen = alle Daten weg.**
+- Deshalb regelmäßig **Einstellungen → Backup exportieren** nutzen.
+- Beim Gerätewechsel zuerst das Backup exportieren und auf dem neuen Gerät importieren.
+- Die App bittet den Browser um dauerhafte Speicherung; eine Garantie ist das auf iOS nicht.
+  Das JSON-Backup bleibt die verlässliche Sicherung.
 
 ## Projekt-Status
 
-**v9 · Dark Edition** — vollständig implementiert und browser-geprüft (iPhone 15 Pro
-393×852 + Desktop). Roadmap & Ideen-Pool: siehe `AI_CONTEXT.md` §14–15.
+**v10 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).

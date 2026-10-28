@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { loadAllData, localRequest } from './localdb'
 import type { EventItem, NoteItem, TaskItem, TransactionItem } from './types'
 
 export interface ZentraleData {
@@ -12,7 +13,7 @@ export interface ZentraleData {
 
 const EMPTY: ZentraleData = { events: [], tasks: [], transactions: [], notes: [] }
 
-/** Lädt alle vier Bereiche und bietet refresh() nach jeder Änderung. */
+/** Lädt alle vier Bereiche aus IndexedDB und bietet refresh() nach jeder Änderung. */
 export function useZentrale() {
   const [data, setData] = useState<ZentraleData>(EMPTY)
   const [loading, setLoading] = useState(true)
@@ -22,19 +23,13 @@ export function useZentrale() {
   const refresh = useCallback(async () => {
     const requestId = ++requestRef.current
     try {
-      const [events, tasks, transactions, notes] = await Promise.all(
-        (['/api/events', '/api/tasks', '/api/transactions', '/api/notes'] as const).map(async (url) => {
-          const res = await fetch(url)
-          if (!res.ok) throw new Error(`Fehler bei ${url}`)
-          return res.json()
-        })
-      )
+      const next = await loadAllData()
       if (requestId !== requestRef.current) return
-      setData({ events, tasks, transactions, notes })
+      setData(next)
       setError(null)
     } catch {
       if (requestId !== requestRef.current) return
-      setError('Daten konnten nicht geladen werden. Bitte Seite neu laden.')
+      setError('Daten konnten nicht geladen werden. Bitte die App neu öffnen.')
     } finally {
       if (requestId === requestRef.current) setLoading(false)
     }
@@ -48,22 +43,14 @@ export function useZentrale() {
   return { ...data, loading, error, refresh }
 }
 
-/** Kleiner Fetch-Wrapper für Mutationen. */
+/** Kleiner Wrapper für lokale Mutationen (behält die bisherigen Aufrufstellen bei). */
 export async function apiSend(
   url: string,
   method: 'POST' | 'PATCH' | 'DELETE',
   body?: unknown
 ): Promise<boolean> {
-  try {
-    const res = await fetch(url, {
-      method,
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    })
-    return res.ok
-  } catch {
-    return false
-  }
+  const result = await localRequest(url, method, body)
+  return result.ok
 }
 
 /** Wie apiSend, liefert aber den erzeugten Datensatz zurück (für Undo-Wiederherstellung u. ä.). */
@@ -72,15 +59,6 @@ export async function apiSendJson<T>(
   method: 'POST' | 'PATCH' | 'DELETE',
   body?: unknown
 ): Promise<T | null> {
-  try {
-    const res = await fetch(url, {
-      method,
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    })
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    return null
-  }
+  const result = await localRequest<T>(url, method, body)
+  return result.ok ? result.data : null
 }

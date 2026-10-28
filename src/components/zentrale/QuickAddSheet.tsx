@@ -115,19 +115,8 @@ export function QuickAddSheet({
       setParsing(false)
       return
     }
-    try {
-      const res = await fetch('/api/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      })
-      if (!res.ok) throw new Error()
-      applyEntry((await res.json()) as ParsedEntry, false)
-    } catch {
-      toast({ title: 'Nicht erkannt.', description: 'Bitte direkt im Formular erfassen.', variant: 'destructive' })
-    } finally {
-      setParsing(false)
-    }
+    setParsing(false)
+    toast({ title: 'Nicht erkannt.', description: 'Bitte direkt im Formular erfassen.', variant: 'destructive' })
   }
 
   function applyEntry(entry: ParsedEntry, local: boolean) {

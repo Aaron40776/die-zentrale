@@ -5,6 +5,7 @@ import { CalendarCheck, Check, Download, FileSpreadsheet, Info, Palette, Upload 
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { ImportSheet } from '@/components/zentrale/ImportSheet'
 import { dayKey } from '@/lib/zentrale/date'
+import { downloadCsv, getBudget } from '@/lib/zentrale/localdb'
 import type { EventItem, NoteItem, TaskItem, TransactionItem } from '@/lib/zentrale/types'
 import { cn } from '@/lib/utils'
 
@@ -26,11 +27,6 @@ const ACCENTS = [
 ] as const
 
 type AccentId = (typeof ACCENTS)[number]['id']
-
-/** Cookie spiegelt die Akzentwahl für den servergerenderten Start (kein Farbblitz). */
-function persistAccent(id: AccentId) {
-  document.cookie = `zentrale-accent=${id}; Path=/; Max-Age=31536000; SameSite=Lax`
-}
 
 function Row({
   icon: Icon,
@@ -80,8 +76,7 @@ function exportBackup(events: EventItem[], tasks: TaskItem[], transactions: Tran
   return async () => {
     let budget: number | null = null
     try {
-      const res = await fetch('/api/budget')
-      if (res.ok) budget = (await res.json()).amount ?? null
+      budget = await getBudget()
     } catch {
       /* ohne Budget exportieren */
     }
@@ -130,7 +125,6 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
     else document.documentElement.setAttribute('data-accent', id)
     try {
       localStorage.setItem('zentrale-accent', id)
-      persistAccent(id)
     } catch {
       /* Speichern nicht möglich -> Auswahl gilt nur für diese Sitzung */
     }
@@ -167,8 +161,7 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
                   icon={FileSpreadsheet}
                   title="Buchungen als CSV"
                   hint="Für Excel oder Numbers – Semikolon-getrennt, deutsche Zahlen."
-                  href="/api/export/csv"
-                  download
+                  onClick={() => downloadCsv(transactions)}
                 />
               </div>
             </section>

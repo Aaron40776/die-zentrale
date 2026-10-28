@@ -1,6 +1,6 @@
 // Minimaler Service Worker für "Die Zentrale":
-// Network-first mit Cache-Fallback (Shell & Assets), /api/ bleibt immer live.
-const CACHE = 'die-zentrale-v9'
+// Network-first mit Cache-Fallback (Shell & Assets) – die App hat keine API.
+const CACHE = 'die-zentrale-v10'
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (event) => {
@@ -24,8 +24,6 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   if (url.origin !== location.origin) return
-  if (url.pathname.startsWith('/api/')) return
-
   event.respondWith(
     fetch(req)
       .then((res) => {

@@ -11,6 +11,7 @@ import { DonutChart } from '@/components/zentrale/DonutChart'
 import { TrendChart } from '@/components/zentrale/TrendChart'
 import { dayDiff, dayKey, fmtEur } from '@/lib/zentrale/date'
 import { forecastLabel, forecastMonthEnd, isPlannedEntry, monthlyEquivalent } from '@/lib/zentrale/finance'
+import { getBudget, setBudget as saveLocalBudget } from '@/lib/zentrale/localdb'
 import { parseAmount } from '@/lib/zentrale/money'
 import { CATEGORY_COLORS, RECURRING_LABELS, type EditTarget, type TransactionItem } from '@/lib/zentrale/types'
 
@@ -46,16 +47,16 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
 
   useEffect(() => {
     let alive = true
-    fetch('/api/budget')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { amount: number | null } | null) => {
-        if (alive && d) setBudget(d.amount)
+    getBudget()
+      .then((amount) => {
+        if (alive) setBudget(amount)
       })
       .catch(() => {})
     return () => {
       alive = false
     }
-  }, [])
+    // Budget nach Import/Refresh erneut lesen; die Transaktionsliste ändert dabei ihre Identität.
+  }, [transactions])
 
   function openBudgetDialog() {
     setBudgetInput(budget !== null ? String(budget).replace('.', ',') : '')
@@ -70,12 +71,7 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
     }
     setBudgetSaving(true)
     try {
-      const res = await fetch('/api/budget', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: value }),
-      })
-      if (!res.ok) throw new Error()
+      await saveLocalBudget(value)
       setBudget(Math.round(value * 100) / 100)
       setBudgetOpen(false)
       toast({ title: 'Budget gespeichert.', description: `Ausgabengrenze: ${fmtEur(value)} pro Monat.` })
@@ -89,12 +85,7 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
   async function clearBudget() {
     setBudgetSaving(true)
     try {
-      const res = await fetch('/api/budget', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: null }),
-      })
-      if (!res.ok) throw new Error()
+      await saveLocalBudget(null)
       setBudget(null)
       setBudgetOpen(false)
       toast({ title: 'Budget entfernt.' })

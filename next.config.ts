@@ -1,11 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
-  /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // Reine Browser-App: statisches HTML/JS für Netlify oder einen anderen Static-Host.
+  output: "export",
+  images: { unoptimized: true },
+  trailingSlash: true,
   reactStrictMode: false,
 };
 

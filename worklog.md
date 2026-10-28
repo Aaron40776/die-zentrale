@@ -1,3 +1,6 @@
+> **Historisches Arbeitsprotokoll.** Es beschreibt die frühere Server-/Prisma-Version.
+> Aktuell gilt ausschließlich [`AI_CONTEXT.md`](AI_CONTEXT.md): lokale PWA mit IndexedDB.
+
 # Worklog
 
 ---
