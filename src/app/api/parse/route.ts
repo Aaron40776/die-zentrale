@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
+import { parseQuickText } from '@/lib/zentrale/quickparse'
+import { dayKey } from '@/lib/zentrale/date'
+import type { Priority, Recurring } from '@/lib/zentrale/types'
 
 export const runtime = 'nodejs'
 
@@ -65,7 +68,7 @@ function cleanText(s: unknown, max = 120): string | null {
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
-const oneOf = <T extends string>(v: unknown, list: readonly T[]): T => (list.includes(v as T) ? (v as T) : list[list.length - 1])
+const oneOf = <T extends string>(v: unknown, list: readonly T[], fallback: T): T => (list.includes(v as T) ? (v as T) : fallback)
 const bool = (v: unknown): boolean => v === true
 
 export type ParsedEntry =
@@ -74,74 +77,98 @@ export type ParsedEntry =
   | { kind: 'transaction'; title: string; amount: number; type: string; category: string; date: string; recurring: string }
   | { kind: 'note'; title: string; content: string }
 
-export async function POST(req: Request) {
-  try {
-    const body = (await req.json().catch(() => null)) as { text?: unknown } | null
-    const text = typeof body?.text === 'string' ? body.text.replace(/\s+/g, ' ').trim().slice(0, 300) : ''
-    if (!text) return NextResponse.json({ error: 'Kein Text übergeben.' }, { status: 400 })
-
-    const zai = await ZAI.create()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: systemPrompt(new Date()) },
-        { role: 'user', content: text },
-      ],
-      thinking: { type: 'disabled' },
-    })
-    const raw = completion.choices[0]?.message?.content ?? ''
-    const json = extractJson(raw)
-    if (!json) return NextResponse.json({ error: 'Antwort konnte nicht gelesen werden.' }, { status: 422 })
-
-    const fallbackTitle = text.slice(0, 60)
-    const kind = json.kind
-
-    if (kind === 'event') {
-      const entry: ParsedEntry = {
-        kind: 'event',
-        title: cleanText(json.title, 60) ?? fallbackTitle,
-        date: validIsoDate(json.date) ?? new Date().toISOString().slice(0, 10),
-        time: validTime(json.time),
-        place: cleanText(json.place),
-        priority: oneOf(json.priority, PRIORITIES),
-        yearly: bool(json.yearly),
-      }
-      return NextResponse.json(entry)
+/** KI-Antwort robust in einen ParsedEntry verwandeln; null = unbrauchbar. */
+function normalizeAi(json: Record<string, unknown>, fallbackTitle: string): ParsedEntry | null {
+  const kind = json.kind
+  if (kind === 'event') {
+    return {
+      kind: 'event',
+      title: cleanText(json.title, 60) ?? fallbackTitle,
+      date: validIsoDate(json.date) ?? dayKey(new Date()),
+      time: validTime(json.time),
+      place: cleanText(json.place),
+      priority: oneOf(json.priority, PRIORITIES as Priority[], 'MEDIUM'),
+      yearly: bool(json.yearly),
     }
-    if (kind === 'task') {
-      const entry: ParsedEntry = {
-        kind: 'task',
-        title: cleanText(json.title, 60) ?? fallbackTitle,
-        dueDate: validIsoDate(json.dueDate),
-        priority: oneOf(json.priority, PRIORITIES),
-        recurring: oneOf(json.recurring, TASK_RECURRING),
-      }
-      return NextResponse.json(entry)
-    }
-    if (kind === 'transaction') {
-      const amount = num(json.amount)
-      const entry: ParsedEntry = {
-        kind: 'transaction',
-        title: cleanText(json.title, 60) ?? fallbackTitle,
-        amount: amount && amount > 0 ? Math.round(amount * 100) / 100 : 0,
-        type: json.type === 'INCOME' ? 'INCOME' : 'EXPENSE',
-        category: CATEGORIES.includes(json.category as string) ? (json.category as string) : 'Sonstiges',
-        date: validIsoDate(json.date) ?? new Date().toISOString().slice(0, 10),
-        recurring: oneOf(json.recurring, TX_RECURRING),
-      }
-      if (entry.amount <= 0) return NextResponse.json({ error: 'Kein Betrag erkannt.' }, { status: 422 })
-      return NextResponse.json(entry)
-    }
-    if (kind === 'note') {
-      const entry: ParsedEntry = {
-        kind: 'note',
-        title: cleanText(json.title, 60) ?? fallbackTitle,
-        content: cleanText(json.content, 4000) ?? '',
-      }
-      return NextResponse.json(entry)
-    }
-    return NextResponse.json({ error: 'Typ nicht erkannt.' }, { status: 422 })
-  } catch (err) {
-    console.error('[parse] Fehler:', err)
-    return NextResponse.json({ error: 'Assistent momentan nicht erreichbar.' }, { status: 502 })
   }
+  if (kind === 'task') {
+    return {
+      kind: 'task',
+      title: cleanText(json.title, 60) ?? fallbackTitle,
+      dueDate: validIsoDate(json.dueDate),
+      priority: oneOf(json.priority, PRIORITIES as Priority[], 'MEDIUM'),
+      recurring: oneOf(json.recurring, TASK_RECURRING as Recurring[], 'NONE'),
+    }
+  }
+  if (kind === 'transaction') {
+    const amount = num(json.amount)
+    if (!amount || amount <= 0) return null
+    return {
+      kind: 'transaction',
+      title: cleanText(json.title, 60) ?? fallbackTitle,
+      amount: Math.round(amount * 100) / 100,
+      type: json.type === 'INCOME' ? 'INCOME' : 'EXPENSE',
+      category: CATEGORIES.includes(json.category as string) ? (json.category as string) : 'Sonstiges',
+      date: validIsoDate(json.date) ?? dayKey(new Date()),
+      recurring: oneOf(json.recurring, TX_RECURRING as Recurring[], 'NONE'),
+    }
+  }
+  if (kind === 'note') {
+    return {
+      kind: 'note',
+      title: cleanText(json.title, 60) ?? fallbackTitle,
+      content: cleanText(json.content, 4000) ?? '',
+    }
+  }
+  return null
+}
+
+/** KI-Aufruf mit Zeitlimit; bei Fehlern/Timeout gibt es keinen Eintrag. */
+async function parseWithAi(text: string): Promise<ParsedEntry | null> {
+  const zai = await ZAI.create()
+  const completion = await zai.chat.completions.create({
+    messages: [
+      { role: 'assistant', content: systemPrompt(new Date()) },
+      { role: 'user', content: text },
+    ],
+    thinking: { type: 'disabled' },
+  })
+  const raw = completion.choices[0]?.message?.content ?? ''
+  const json = extractJson(raw)
+  if (!json) return null
+  return normalizeAi(json, text.slice(0, 60))
+}
+
+// Nach einem Ausfall den KI-Dienst 5 Minuten nicht erneut anfragen -> sofortige lokale Antwort.
+let aiCooldownUntil = 0
+const AI_COOLDOWN_MS = 5 * 60 * 1000
+const AI_TIMEOUT_MS = 6000
+
+export async function POST(req: Request) {
+  const body = (await req.json().catch(() => null)) as { text?: unknown } | null
+  const text = typeof body?.text === 'string' ? body.text.replace(/\s+/g, ' ').trim().slice(0, 300) : ''
+  if (!text) return NextResponse.json({ error: 'Kein Text übergeben.' }, { status: 400 })
+
+  // Lokale Erkennung zuerst: sofort, offline und ohne Datenweitergabe.
+  const local = parseQuickText(text)
+  if (local) return NextResponse.json(local)
+
+  // KI nur als Fallback für Eingaben, die lokal nicht gedeutet werden können.
+  if (Date.now() > aiCooldownUntil) {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('timeout')), AI_TIMEOUT_MS)
+      })
+      const ai = await Promise.race([parseWithAi(text), timeout])
+      if (ai) return NextResponse.json(ai)
+    } catch (err) {
+      console.error('[parse] KI nicht erreichbar:', err)
+      aiCooldownUntil = Date.now() + AI_COOLDOWN_MS
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  return NextResponse.json({ error: 'Nicht erkannt – bitte direkt im Formular erfassen.' }, { status: 422 })
 }

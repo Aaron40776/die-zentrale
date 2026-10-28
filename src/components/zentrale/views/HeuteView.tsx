@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import { AlertTriangle, CalendarDays, CheckCircle2, ChevronRight, ListTodo, Pin, Search, Settings, Smartphone, Wallet, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ChevronRight, ListTodo, Loader2, Pin, Search, Settings, Smartphone, StickyNote, Wallet, X } from 'lucide-react'
 import { CountdownChip, EmptyHint, SectionTitle, SkeletonRow } from '@/components/zentrale/bits'
 import { EventRow, TaskRow } from '@/components/zentrale/rows'
 import { SettingsSheet } from '@/components/zentrale/SettingsSheet'
-import { dayDiff, dayKey, eventDate, fmtEur, fmtLongDate } from '@/lib/zentrale/date'
-import { forecastLabel, forecastMonthEnd } from '@/lib/zentrale/finance'
+import { addDays, dayDiff, dayKey, eventOccurrences, fmtEur, fmtLongDate, startOfDay } from '@/lib/zentrale/date'
+import { forecastLabel, forecastMonthEnd, isPlannedEntry } from '@/lib/zentrale/finance'
 import type { EditTarget, EventItem, NoteItem, QuickTab, TaskItem, TransactionItem } from '@/lib/zentrale/types'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +23,9 @@ interface Props {
   onSnoozeTask: (t: TaskItem) => void
   onDeleteTask?: (t: TaskItem) => void
   onQuickAdd: (tab: QuickTab) => void
+  /** Fixposten direkt aus der Übersicht buchen. */
+  onBookFixed?: (t: TransactionItem) => void
+  bookingId?: string | null
   onSearch: () => void
   onRefresh: () => void
 }
@@ -45,7 +48,10 @@ const installHintStore = {
     const standalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true
-    return !standalone && localStorage.getItem('zentrale-install-hint-done') === null
+    // Nur auf iPhone/iPad zeigen – Desktop und Android bekommen keine iOS-Anleitung.
+    const nav = window.navigator as Navigator & { standalone?: boolean }
+    const isIOS = /iPad|iPhone|iPod/.test(nav.userAgent) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1)
+    return isIOS && !standalone && localStorage.getItem('zentrale-install-hint-done') === null
   },
   dismiss() {
     localStorage.setItem('zentrale-install-hint-done', '1')
@@ -80,7 +86,7 @@ function ProgressRing({ pct, label }: { pct: number; label: string }) {
 }
 
 /** Heute-Fokus: die 5-Sekunden-Übersicht – Hero → Rot → Heute → 7 Tage → Geld → Notizen. */
-export function HeuteView({ events, tasks, transactions, notes, loading, error, onNavigate, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd, onSearch, onRefresh }: Props) {
+export function HeuteView({ events, tasks, transactions, notes, loading, error, onNavigate, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd, onBookFixed, bookingId = null, onSearch, onRefresh }: Props) {
   const today = new Date()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const showInstallHint = useSyncExternalStore(installHintStore.subscribe, installHintStore.get, () => false)
@@ -88,33 +94,38 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
   const overdueTasks = tasks
     .filter((t) => !t.done && t.dueDate && dayDiff(new Date(t.dueDate)) < 0)
     .sort((a, b) => (a.dueDate! < b.dueDate! ? -1 : 1))
-  const recentPastEvents = events
-    .filter((e) => {
-      if (e.recurring === 'YEARLY') return false
-      const d = dayDiff(new Date(e.date))
-      return d < 0 && d >= -2
-    })
-    .sort((a, b) => (a.date < b.date ? -1 : 1))
+  const overdueCount = overdueTasks.length
+  const dayStart = startOfDay(today)
   const todayEvents = events
-    .filter((e) => dayDiff(eventDate(e)) === 0)
-    .sort((a, b) => (eventDate(a) < eventDate(b) ? -1 : 1))
+    .flatMap((e) => eventOccurrences(e, dayStart, dayStart).map((occ) => ({ event: e, date: occ })))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
   const todayTasks = tasks.filter((t) => !t.done && t.dueDate && dayDiff(new Date(t.dueDate)) === 0)
+  // Fällige Fixposten (Abos/Miete) – direkt in der Übersicht sichtbar und buchbar.
+  const fixedDue = transactions
+    .filter((t) => t.recurring !== 'NONE' && t.nextDue && dayDiff(new Date(t.nextDue)) <= 0)
+    .sort((a, b) => (a.nextDue! < b.nextDue! ? -1 : 1))
+  const overdueFixed = fixedDue.filter((t) => dayDiff(new Date(t.nextDue!)) < 0)
+  const todayFixed = fixedDue.filter((t) => dayDiff(new Date(t.nextDue!)) === 0)
 
-  type Upcoming = { kind: 'event'; event: EventItem; date: string } | { kind: 'task'; task: TaskItem; date: string }
+  type Upcoming = { kind: 'event'; event: EventItem; date: string; key: string } | { kind: 'task'; task: TaskItem; date: string; key: string }
+  const horizonEnd = addDays(dayStart, 7)
   const upcoming: Upcoming[] = [
     ...events
-      .filter((e) => {
-        const d = dayDiff(eventDate(e))
-        return d >= 1 && d <= 7
-      })
-      .map((e) => ({ kind: 'event' as const, event: e, date: eventDate(e).toISOString() })),
+      .flatMap((e) =>
+        eventOccurrences(e, addDays(dayStart, 1), horizonEnd).map((occ) => ({
+          kind: 'event' as const,
+          event: e,
+          date: occ.toISOString(),
+          key: `e-${e.id}-${occ.getTime()}`,
+        }))
+      ),
     ...tasks
       .filter((t) => {
         if (t.done || !t.dueDate) return false
         const d = dayDiff(new Date(t.dueDate))
         return d >= 1 && d <= 7
       })
-      .map((t) => ({ kind: 'task' as const, task: t, date: t.dueDate! })),
+      .map((t) => ({ kind: 'task' as const, task: t, date: t.dueDate!, key: `t-${t.id}` })),
   ]
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .slice(0, 5)
@@ -122,10 +133,11 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
   const pinned = notes.filter((n) => n.pinned)
   const openCount = tasks.filter((t) => !t.done).length
 
-  const balance = transactions.reduce((s, t) => s + (t.type === 'INCOME' ? t.amount : -t.amount), 0)
+  const balance = transactions.filter((t) => !isPlannedEntry(t, today)).reduce((s, t) => s + (t.type === 'INCOME' ? t.amount : -t.amount), 0)
   const fx = forecastMonthEnd(transactions, balance, today)
   const monthKey = dayKey(today).slice(0, 7)
-  const monthTx = transactions.filter((t) => dayKey(new Date(t.date)).slice(0, 7) === monthKey)
+  const monthTx = transactions
+    .filter((t) => dayKey(new Date(t.date)).slice(0, 7) === monthKey && !isPlannedEntry(t, today))
   const inSum = monthTx.filter((t) => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0)
   const outSum = monthTx.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
 
@@ -151,10 +163,12 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
       className="hit flex shrink-0 items-center gap-0.5 rounded-full bg-white/10 px-2 py-1 text-[11px] font-semibold text-red-200 transition-colors hover:bg-white/20 hover:text-white"
     >
       morgen
+      <ArrowRight className="h-3 w-3" aria-hidden />
     </button>
   )
 
-  const todayCount = todayEvents.length + todayTasks.length
+  const todayCount = todayEvents.length + todayTasks.length + todayFixed.length
+  const attentionCount = overdueTasks.length + overdueFixed.length
 
   return (
     <div>
@@ -186,7 +200,12 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
       </header>
 
       {error && (
-        <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-[13px] text-red-300">{error}</div>
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-[13px] text-red-300">
+          <span className="min-w-0 flex-1">{error}</span>
+          <button type="button" onClick={onRefresh} className="hit shrink-0 font-semibold underline underline-offset-2">
+            Erneut laden
+          </button>
+        </div>
       )}
 
       {loading ? (
@@ -208,12 +227,13 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
             Ein Ort für Termine, Aufgaben, Finanzen und Notizen. Alles, was du erfasst, sortiert sich hier automatisch
             nach Dringlichkeit – rot zuerst, Rest leise.
           </p>
-          <div className="mt-5 grid grid-cols-3 gap-2">
+          <div className="mt-5 grid grid-cols-2 gap-2">
             {(
               [
                 { tab: 'event', label: 'Termin', icon: CalendarDays },
                 { tab: 'task', label: 'Aufgabe', icon: ListTodo },
                 { tab: 'transaction', label: 'Buchung', icon: Wallet },
+                { tab: 'note', label: 'Notiz', icon: StickyNote },
               ] as const
             ).map((c) => (
               <button
@@ -227,7 +247,9 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
               </button>
             ))}
           </div>
-          <p className="mt-4 text-[11px] text-stone-500">Später erledigt die +-Taste unten das Gleiche.</p>
+          <p className="mt-4 text-[11px] text-stone-500">
+            Die +-Taste unten öffnet dieselbe Auswahl jederzeit wieder.
+          </p>
         </div>
       ) : (
         <div className="space-y-1">
@@ -241,29 +263,37 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
                   {fmtLongDate(today)}
                 </h2>
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  {todayCount === 0 ? (
+                  {overdueCount > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 px-2.5 py-1 text-[11px] font-semibold text-red-300">
+                      <AlertTriangle className="h-3 w-3" aria-hidden />
+                      {overdueCount} überfällig
+                    </span>
+                  )}
+                  {todayCount === 0 && overdueCount === 0 && (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-medium text-green-300">
                       <CheckCircle2 className="h-3 w-3" aria-hidden />
                       Nichts angesetzt
                     </span>
-                  ) : (
-                    <>
-                      {todayEvents.length > 0 && (
-                        <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">
-                          {todayEvents.length} {todayEvents.length === 1 ? 'Termin' : 'Termine'} heute
-                        </span>
-                      )}
-                      {todayTasks.length > 0 && (
-                        <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">
-                          {todayTasks.length} {todayTasks.length === 1 ? 'Aufgabe' : 'Aufgaben'} fällig
-                        </span>
-                      )}
-                      {openCount - dueNow > 0 && (
-                        <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-                          {openCount} offen gesamt
-                        </span>
-                      )}
-                    </>
+                  )}
+                  {todayEvents.length > 0 && (
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">
+                      {todayEvents.length} {todayEvents.length === 1 ? 'Termin' : 'Termine'} heute
+                    </span>
+                  )}
+                  {todayTasks.length > 0 && (
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">
+                      {todayTasks.length} {todayTasks.length === 1 ? 'Aufgabe' : 'Aufgaben'} fällig
+                    </span>
+                  )}
+                  {todayFixed.length > 0 && (
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">
+                      {todayFixed.length} {todayFixed.length === 1 ? 'Fixposten' : 'Fixposten'} fällig
+                    </span>
+                  )}
+                  {openCount > 0 && (
+                    <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                      {openCount} offen gesamt
+                    </span>
                   )}
                 </div>
               </div>
@@ -292,12 +322,12 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
           )}
 
           {/* ---------- Überfälliges zuerst – die rote Ebene ---------- */}
-          {(overdueTasks.length > 0 || recentPastEvents.length > 0) && (
+          {(overdueTasks.length > 0 || overdueFixed.length > 0) && (
             <section aria-label="Überfällig" className="animate-rise mt-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-3.5" style={{ animationDelay: '60ms' }}>
               <div className="mb-2 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
                 <h2 className="text-[13px] font-bold text-red-300">
-                  Braucht jetzt Aufmerksamkeit ({overdueTasks.length + recentPastEvents.length})
+                  Braucht jetzt Aufmerksamkeit ({overdueTasks.length + overdueFixed.length})
                 </h2>
               </div>
               <ul className="space-y-2">
@@ -317,31 +347,46 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
                     <CountdownChip iso={t.dueDate} />
                   </li>
                 ))}
-                {recentPastEvents.map((ev) => (
-                  <li key={ev.id} className="flex items-center gap-2.5">
+                {overdueFixed.map((t) => (
+                  <li key={`fixed-${t.id}`} className="flex items-center gap-2.5">
                     <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center">
-                      <CalendarDays className="h-4 w-4 text-red-400/70" />
+                      <Wallet className="h-4 w-4 text-red-400/70" />
                     </span>
                     <button
                       type="button"
-                      onClick={() => onEdit({ kind: 'event', event: ev })}
+                      onClick={() => onNavigate('finanzen')}
                       className="min-w-0 flex-1 truncate text-left text-[13px] font-medium text-foreground"
                     >
-                      {ev.title}
+                      {t.title}
+                      <span className="ml-1.5 text-[11px] font-normal text-red-300">
+                        {t.type === 'INCOME' ? '+' : '−'}
+                        {fmtEur(t.amount)}
+                      </span>
                     </button>
-                    <span className="inline-flex shrink-0 items-center rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-medium text-red-400">
-                      vorbei
-                    </span>
+                    <CountdownChip iso={t.nextDue} />
                   </li>
                 ))}
               </ul>
-              <button
-                type="button"
-                onClick={() => onNavigate('aufgaben')}
-                className="hit mt-2.5 py-1 text-xs font-semibold text-red-300 underline-offset-2 hover:underline"
-              >
-                Aufgaben öffnen
-              </button>
+              <div className="mt-2 flex items-center gap-4">
+                {overdueTasks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('aufgaben')}
+                    className="hit py-1 text-xs font-semibold text-red-300 underline-offset-2 hover:underline"
+                  >
+                    Aufgaben öffnen
+                  </button>
+                )}
+                {overdueFixed.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('finanzen')}
+                    className="hit py-1 text-xs font-semibold text-red-300 underline-offset-2 hover:underline"
+                  >
+                    Finanzen öffnen
+                  </button>
+                )}
+              </div>
             </section>
           )}
 
@@ -349,19 +394,55 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
           <section aria-label="Heute fällig" className="animate-rise mt-1" style={{ animationDelay: '120ms' }}>
             <SectionTitle>Heute</SectionTitle>
             {todayCount === 0 ? (
-              <div className="flex items-center gap-2.5 rounded-2xl border border-green-500/30 bg-green-500/10 p-3.5">
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-green-400" aria-hidden />
-                <p className="text-[13px] text-green-300">
-                  <span className="font-semibold">Alles im Plan.</span> Für heute steht nichts mehr an.
-                </p>
-              </div>
+              attentionCount > 0 ? (
+                <div className="flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5">
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" aria-hidden />
+                  <p className="text-[13px] text-amber-300">
+                    <span className="font-semibold">Heute nichts Neues</span> – aber {attentionCount}{' '}
+                    {attentionCount === 1 ? 'Eintrag braucht' : 'Einträge brauchen'} oben Aufmerksamkeit.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2.5 rounded-2xl border border-green-500/30 bg-green-500/10 p-3.5">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-green-400" aria-hidden />
+                  <p className="text-[13px] text-green-300">
+                    <span className="font-semibold">Alles im Plan.</span> Für heute steht nichts mehr an.
+                  </p>
+                </div>
+              )
             ) : (
               <div className="space-y-2">
                 {todayEvents.map((ev) => (
-                  <EventRow key={ev.id} event={ev} onEdit={() => onEdit({ kind: 'event', event: ev })} compact />
+                  <EventRow key={`${ev.event.id}-${ev.date.getTime()}`} event={ev.event} occurrenceDate={ev.date.toISOString()} onEdit={() => onEdit({ kind: 'event', event: ev.event })} compact />
                 ))}
                 {todayTasks.map((t) => (
                   <TaskRow key={t.id} task={t} onToggle={() => onToggleTask(t)} onEdit={() => onEdit({ kind: 'task', task: t })} onDelete={onDeleteTask ? () => onDeleteTask(t) : undefined} />
+                ))}
+                {todayFixed.map((t) => (
+                  <div key={`fixed-${t.id}`} className="flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                    <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
+                      <Wallet className="h-4 w-4 text-amber-400" />
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onEdit({ kind: 'transaction', transaction: t })}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <span className="block truncate text-[13px] font-semibold text-foreground">{t.title}</span>
+                      <span className="block text-[11px] text-amber-300">
+                        {t.type === 'INCOME' ? '+' : '−'}
+                        {fmtEur(t.amount)} · Fixposten {t.nextDue && dayDiff(new Date(t.nextDue)) < 0 ? 'überfällig' : 'heute fällig'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onBookFixed?.(t)}
+                      disabled={!onBookFixed || bookingId === t.id}
+                      className="shrink-0 rounded-full bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold text-amber-200 transition-colors hover:bg-amber-500/30 disabled:opacity-60"
+                    >
+                      {bookingId === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : 'Buchen'}
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -388,9 +469,9 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
               <div className="space-y-2">
                 {upcoming.map((u) =>
                   u.kind === 'event' ? (
-                    <EventRow key={u.event.id} event={u.event} onEdit={() => onEdit({ kind: 'event', event: u.event })} compact />
+                    <EventRow key={u.key} event={u.event} occurrenceDate={u.date} onEdit={() => onEdit({ kind: 'event', event: u.event })} compact showDate />
                   ) : (
-                    <TaskRow key={u.task.id} task={u.task} onToggle={() => onToggleTask(u.task)} onEdit={() => onEdit({ kind: 'task', task: u.task })} onDelete={onDeleteTask ? () => onDeleteTask(u.task) : undefined} />
+                    <TaskRow key={u.key} task={u.task} onToggle={() => onToggleTask(u.task)} onEdit={() => onEdit({ kind: 'task', task: u.task })} onDelete={onDeleteTask ? () => onDeleteTask(u.task) : undefined} />
                   )
                 )}
               </div>
@@ -429,10 +510,10 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">
-                    <span className="font-semibold text-green-300">+{fmtEur(inSum)}</span> rein
+                    <span className="font-semibold text-green-300">{inSum > 0 ? `+${fmtEur(inSum)}` : fmtEur(0)}</span> rein
                   </span>
                   <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">
-                    <span className="font-semibold text-red-300">−{fmtEur(outSum)}</span> raus
+                    <span className="font-semibold text-red-300">{outSum > 0 ? `−${fmtEur(outSum)}` : fmtEur(0)}</span> raus
                   </span>
                   {fx.movements > 0 && (
                     <span
@@ -440,7 +521,7 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
                         'rounded-full px-2.5 py-1 text-[11px] font-medium',
                         fx.forecast >= 0 ? 'bg-green-500/15 text-green-300' : 'bg-red-500/15 text-red-300'
                       )}
-                      title="Aktueller Saldo plus alle Fixposten, die bis Monatsende noch fällig sind"
+                      title="Aktueller Saldo plus alle bis Monatsende geplanten Posten"
                     >
                       Prognose Monatsende <span className="font-semibold">{forecastLabel(fx)}</span>
                     </span>
@@ -459,12 +540,12 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
                   <button
                     key={n.id}
                     type="button"
-                    onClick={() => onNavigate('aufgaben')}
+                    onClick={() => onEdit({ kind: 'note', note: n })}
                     className="w-52 shrink-0 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-left transition-transform active:scale-[0.98]"
                   >
-                    <p className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">
+                    <p className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-foreground">
                       <Pin className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden />
-                      <span className="truncate">{n.title}</span>
+                      <span className="min-w-0 flex-1 truncate">{n.title}</span>
                     </p>
                     <p className="mt-1 line-clamp-3 whitespace-pre-line text-xs leading-relaxed text-muted-foreground">{n.content}</p>
                   </button>

@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next'
+import { cookies } from 'next/headers'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
+import { AccentSync } from '@/components/AccentSync'
 import { RegisterSW } from '@/components/RegisterSW'
 
 const geistSans = Geist({
@@ -47,20 +49,17 @@ export const viewport: Viewport = {
   interactiveWidget: 'resizes-content',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const accent = (await cookies()).get('zentrale-accent')?.value
+  const dataAccent = accent === 'kupfer' || accent === 'salbei' ? accent : undefined
   return (
-    <html lang="de" className="dark" suppressHydrationWarning>
+    <html lang="de" className="dark" data-accent={dataAccent} suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
-        {/* Gewählte Akzentfarbe vor dem ersten Paint anwenden (kein Farbsprunng beim Start) */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var a=localStorage.getItem('zentrale-accent');if(a==='kupfer'||a==='salbei'){document.documentElement.setAttribute('data-accent',a)}}catch(e){}})()`,
-          }}
-        />
+        <AccentSync />
         {/* Tiefenlicht hinter allem Inhalt */}
         <div className="app-ambient" aria-hidden />
         {children}

@@ -6,8 +6,10 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } f
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { apiSend } from '@/lib/zentrale/useZentrale'
+import { cn } from '@/lib/utils'
 
 interface ParsedBackup {
+  budget?: number | null
   events: unknown[]
   tasks: unknown[]
   transactions: unknown[]
@@ -33,11 +35,13 @@ export function ImportSheet({
   const [parsed, setParsed] = useState<ParsedBackup | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [confirmReplace, setConfirmReplace] = useState(false)
 
   function reset() {
     setFileName(null)
     setParsed(null)
     setError(null)
+    setConfirmReplace(false)
     if (inputRef.current) inputRef.current.value = ''
   }
 
@@ -50,6 +54,7 @@ export function ImportSheet({
   function pickFile(f: File | undefined) {
     setParsed(null)
     setError(null)
+    setConfirmReplace(false)
     setFileName(f?.name ?? null)
     if (!f) return
     void f.text().then((txt) => {
@@ -58,6 +63,7 @@ export function ImportSheet({
         if (j.app !== 'Die Zentrale') throw new Error('fremd')
         const arr = (k: string) => (Array.isArray(j[k]) ? (j[k] as unknown[]) : [])
         const p: ParsedBackup = {
+          budget: typeof j.budget === 'number' && Number.isFinite(j.budget) && j.budget > 0 ? j.budget : null,
           events: arr('events'),
           tasks: arr('tasks'),
           transactions: arr('transactions'),
@@ -69,6 +75,7 @@ export function ImportSheet({
         setParsed(p)
       } catch {
         setFileName(null)
+        if (inputRef.current) inputRef.current.value = ''
         setError('Das sieht nicht nach einem Zentrale-Backup aus. Erwartet wird die JSON-Datei aus dem Backup-Export dieser App.')
       }
     })
@@ -144,12 +151,27 @@ export function ImportSheet({
                 <Button
                   type="button"
                   disabled={busy}
-                  onClick={() => run('replace')}
-                  className="flex-1 rounded-xl bg-red-600 text-white hover:bg-red-700"
+                  onClick={() => (confirmReplace ? run('replace') : setConfirmReplace(true))}
+                  className={cn(
+                    'flex-1 rounded-xl text-white',
+                    confirmReplace ? 'bg-red-700 hover:bg-red-800' : 'bg-red-600 hover:bg-red-700'
+                  )}
                 >
-                  {busy ? 'Importiert …' : 'Alles ersetzen'}
+                  {busy ? 'Importiert …' : confirmReplace ? 'Wirklich ersetzen' : 'Alles ersetzen'}
                 </Button>
               </div>
+              {confirmReplace && (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
+                  <span>Alle aktuellen Einträge werden gelöscht.</span>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmReplace(false)}
+                    className="hit shrink-0 font-semibold underline-offset-2 hover:underline"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              )}
               <p className="text-[11px] leading-snug text-stone-500">
                 <span className="font-semibold text-stone-400">Zusammenführen</span> legt alles zusätzlich an (doppelte Einträge möglich).{' '}
                 <span className="font-semibold text-stone-400">Alles ersetzen</span> löscht zuerst alle aktuellen Einträge und stellt das Backup

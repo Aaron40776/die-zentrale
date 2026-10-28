@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { dayKey } from '@/lib/zentrale/date'
-import { TONE_DOT, type Tone } from '@/lib/zentrale/types'
+import { addDays, dayDiff, dayKey, eventOccurrences, startOfDay } from '@/lib/zentrale/date'
+import { PRIORITY_TONE, TONE_DOT, type EventItem, type TaskItem, type Tone } from '@/lib/zentrale/types'
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const
 
@@ -17,17 +17,19 @@ interface CalendarDay {
 /**
  * Monatskalender mit Farbpunkten (5-Farben-Logik): das Planungsraster der Termine.
  * Tipp auf einen Tag filtert die Liste darunter, Pfeile blättern den Monat.
+ * Wiederkehrende Termine erscheinen in jeder Periode des Monats.
  */
 export function MonthCalendar({
   selectedKey,
   onSelectDay,
-  dots,
+  events,
+  tasks,
 }: {
   /** Gewählter Tag als dayKey (YYYY-MM-DD) oder null für "ganze Woche/Monat". */
   selectedKey: string | null
   onSelectDay: (key: string | null) => void
-  /** dayKey -> Farbtöne der Einträge an diesem Tag. */
-  dots: Map<string, Tone[]>
+  events: EventItem[]
+  tasks: TaskItem[]
 }) {
   const today = new Date()
   const todayKey = dayKey(today)
@@ -40,6 +42,10 @@ export function MonthCalendar({
   const first = new Date(view.getFullYear(), view.getMonth(), 1)
   const gridStart = new Date(first)
   gridStart.setDate(1 - ((first.getDay() + 6) % 7))
+  const gridEnd = addDays(gridStart, 41)
+  const gridStartMs = gridStart.getTime()
+  const gridEndMs = gridEnd.getTime()
+  const todayStartMs = startOfDay(today).getTime()
 
   const cells: CalendarDay[] = Array.from({ length: 42 }, (_, i) => {
     const d = new Date(gridStart)
@@ -51,8 +57,33 @@ export function MonthCalendar({
     }
   })
 
+  const from = new Date(gridStartMs)
+  const to = new Date(gridEndMs)
+  const todayStart = new Date(todayStartMs)
+  const dotMap = new Map<string, Tone[]>()
+  const countMap = new Map<string, number>()
+  const pushDot = (key: string, tone: Tone) => {
+    if (!dotMap.has(key)) dotMap.set(key, [])
+    dotMap.get(key)!.push(tone)
+    countMap.set(key, (countMap.get(key) ?? 0) + 1)
+  }
+  for (const ev of events) {
+    for (const occ of eventOccurrences(ev, from, to)) {
+      pushDot(dayKey(occ), PRIORITY_TONE[ev.priority])
+    }
+  }
+  for (const t of tasks) {
+    if (t.done || !t.dueDate) continue
+    const d = startOfDay(new Date(t.dueDate))
+    if (d < startOfDay(from) || d > startOfDay(to)) continue
+    const tone: Tone = dayDiff(d, todayStart) <= 1 ? 'urgent' : PRIORITY_TONE[t.priority]
+    pushDot(dayKey(d), tone)
+  }
+  for (const list of dotMap.values()) list.sort((a, b) => (a === 'urgent' ? -1 : b === 'urgent' ? 1 : 0))
+
   function shift(delta: number) {
     setView((v) => new Date(v.getFullYear(), v.getMonth() + delta, 1))
+    onSelectDay(null)
   }
 
   return (
@@ -73,7 +104,10 @@ export function MonthCalendar({
           {!viewIsCurrentMonth && (
             <button
               type="button"
-              onClick={() => setView(new Date(today.getFullYear(), today.getMonth(), 1))}
+              onClick={() => {
+                setView(new Date(today.getFullYear(), today.getMonth(), 1))
+                onSelectDay(null)
+              }}
               className="hit rounded-lg px-2 py-1.5 text-[11px] font-semibold text-brand transition-colors hover:bg-brand/10"
             >
               Heute
@@ -99,9 +133,10 @@ export function MonthCalendar({
         {cells.map((c) => {
           const isToday = c.key === todayKey
           const isSelected = c.key === selectedKey
-          const dayDots = dots.get(c.key) ?? []
+          const dayDots = dotMap.get(c.key) ?? []
+          const count = countMap.get(c.key) ?? 0
           const shown = dayDots.slice(0, 3)
-          const extra = Math.max(0, dayDots.length - 3)
+          const extra = Math.max(0, count - 3)
           const body = (
             <>
               <span
@@ -138,7 +173,7 @@ export function MonthCalendar({
               key={c.key}
               type="button"
               aria-pressed={isSelected}
-              aria-label={`${c.date.getDate()}. – ${dayDots.length === 1 ? '1 Eintrag' : `${dayDots.length} Einträge`}`}
+              aria-label={`${c.date.getDate()}. – ${count === 1 ? '1 Eintrag' : `${count} Einträge`}`}
               onClick={() => onSelectDay(isSelected ? null : c.key)}
               className="hit flex flex-col items-center gap-0.5 rounded-xl py-1 transition-colors hover:bg-white/[0.04]"
             >

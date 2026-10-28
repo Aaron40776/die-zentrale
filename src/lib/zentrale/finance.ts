@@ -1,15 +1,6 @@
 // Finanz-Helfer: Prognose zum Monatsende aus Fixposten (Abos & wiederkehrende Buchungen).
+import { addMonthsClamped, nextRecurringDate, startOfDay } from './date'
 import type { TransactionItem } from './types'
-
-function addMonthsClamped(d: Date, n: number): Date {
-  const day = d.getDate()
-  const time = d.getHours() * 60 + d.getMinutes()
-  const x = new Date(d.getFullYear(), d.getMonth() + n, 1)
-  const daysInMonth = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate()
-  x.setDate(Math.min(day, daysInMonth))
-  x.setHours(Math.floor(time / 60), time % 60, 0, 0)
-  return x
-}
 
 function endOfMonth(base: Date): Date {
   return new Date(base.getFullYear(), base.getMonth() + 1, 0, 23, 59, 59, 999)
@@ -20,14 +11,30 @@ function endOfMonth(base: Date): Date {
  * nächsten Termin derselben Wiederholung berechnen (Monatsenden klemmen:
  * 31.1. -> 28.2. -> 31.3., kein Drift).
  */
-export function advanceDue(from: Date, recurring: string): Date | null {
-  if (recurring === 'NONE') return null
-  const d = new Date(from)
-  if (recurring === 'WEEKLY') d.setDate(d.getDate() + 7)
-  else if (recurring === 'MONTHLY') return addMonthsClamped(d, 1)
-  else if (recurring === 'YEARLY') return addMonthsClamped(d, 12)
-  return d
+export function advanceDue(from: Date, recurring: string, anchorDay = from.getDate()): Date | null {
+  return nextRecurringDate(from, recurring, anchorDay)
 }
+
+/**
+ * Nicht gebuchte Einträge: Fixposten-Vorlagen zählen nie als Ist-Buchung,
+ * einmalige Einträge erst ab ihrem Datum. Die Prognose plant sie separat ein.
+ */
+export function isPlannedEntry(t: TransactionItem, now: Date = new Date()): boolean {
+  if (t.recurring !== 'NONE') return true
+  return startOfDay(new Date(t.date)).getTime() > startOfDay(now).getTime()
+}
+
+/**
+ * Monatliche Grundlast eines Fixpostens (Woche auf Monat, Jahr auf Monat umgelegt).
+ */
+export function monthlyEquivalent(t: TransactionItem): number {
+  if (t.recurring === 'WEEKLY') return (t.amount * 52) / 12
+  if (t.recurring === 'YEARLY') return t.amount / 12
+  if (t.recurring === 'MONTHLY') return t.amount
+  return 0
+}
+
+export { addMonthsClamped }
 
 export interface Forecast {
   /** Erwarteter Saldo am Monatsende (aktueller Saldo + geplante Fixposten). */
@@ -41,28 +48,48 @@ export interface Forecast {
 }
 
 /**
- * Rechnet aus aktuellen Fixposten die Belastungen bis Monatsende:
- * WEEKLY wird wochenweise durchgestept, MONTHLY/JEARLY fallen einmal an (falls fällig).
+ * Rechnet aus aktuellen Fixposten die Belastungen bis Monatsende.
+ * Eine überfällige, noch nicht gebuchte Rate zählt genau einmal; ältere
+ * verpasste Perioden werden NICHT rückwirkend mitgezählt.
  */
 export function forecastMonthEnd(transactions: TransactionItem[], balance: number, now: Date = new Date()): Forecast {
   const limit = endOfMonth(now)
+  const startToday = startOfDay(now)
   let plannedIn = 0
   let plannedOut = 0
   let movements = 0
 
+  const count = (t: TransactionItem) => {
+    if (t.type === 'INCOME') plannedIn += t.amount
+    else plannedOut += t.amount
+    movements += 1
+  }
+
   for (const t of transactions) {
-    if (t.recurring === 'NONE' || !t.nextDue) continue
-    let cursor = new Date(t.nextDue)
-    // Bereits vergangene Fälligkeiten bis heute zählen mit (heute fällig = kommt noch).
+    // Einmalige, aber erst später gebuchte Einträge bis Monatsende mitplanen.
+    if (t.recurring === 'NONE') {
+      const when = new Date(t.date)
+      if (startOfDay(when).getTime() > startToday.getTime() && when.getTime() <= limit.getTime()) count(t)
+      continue
+    }
+    if (!t.nextDue) continue
+    // Ankertag aus der ursprünglichen Buchung – sonst driftet der 31. nach dem 28. Februar auf den 28.
+    const anchorDay = new Date(t.date).getDate()
+    let cursor: Date | null = new Date(t.nextDue)
     let steps = 0
-    while (cursor.getTime() <= limit.getTime() && steps < 62) {
-      if (t.type === 'INCOME') plannedIn += t.amount
-      else plannedOut += t.amount
-      movements += 1
-      if (t.recurring === 'WEEKLY') cursor.setDate(cursor.getDate() + 7)
-      else if (t.recurring === 'MONTHLY') cursor = addMonthsClamped(cursor, 1)
-      else if (t.recurring === 'YEARLY') cursor = addMonthsClamped(cursor, 12)
-      else break
+
+    // Überfällig: einmal als "kommt noch" zählen, dann bis heute vorspulen.
+    if (cursor.getTime() < startToday.getTime()) {
+      count(t)
+      while (cursor && cursor.getTime() < startToday.getTime() && steps < 500) {
+        cursor = nextRecurringDate(cursor, t.recurring, anchorDay)
+        steps += 1
+      }
+    }
+
+    while (cursor && cursor.getTime() <= limit.getTime() && steps < 520) {
+      count(t)
+      cursor = nextRecurringDate(cursor, t.recurring, anchorDay)
       steps += 1
     }
   }

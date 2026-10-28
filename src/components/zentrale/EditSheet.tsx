@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Copy, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -60,6 +60,8 @@ export function EditSheet({
   onDeleteTarget: (t: EditTarget) => void
 }) {
   const { toast } = useToast()
+  const duplicatingRef = useRef(false)
+  const [duplicating, setDuplicating] = useState(false)
 
   function targetId(t: EditTarget): string {
     switch (t.kind) {
@@ -76,7 +78,9 @@ export function EditSheet({
 
   /** Kopie anlegen (Titel + " (Kopie)"); bei Aufgaben bleibt die Kopie offen, bei Notizen ungepinnt. */
   async function dup() {
-    if (!target) return
+    if (!target || duplicatingRef.current) return
+    duplicatingRef.current = true
+    setDuplicating(true)
     let ok = false
     if (target.kind === 'event') {
       const e = target.event
@@ -95,6 +99,7 @@ export function EditSheet({
         dueDate: t.dueDate,
         priority: t.priority,
         recurring: t.recurring,
+        recurringAnchor: t.recurringAnchor ?? null,
       })
     } else if (target.kind === 'transaction') {
       const t = target.transaction
@@ -105,6 +110,7 @@ export function EditSheet({
         category: t.category,
         date: t.date,
         recurring: t.recurring,
+        nextDue: t.nextDue,
       })
     } else {
       const n = target.note
@@ -117,6 +123,8 @@ export function EditSheet({
     } else {
       toast({ title: 'Duplizieren fehlgeschlagen.', variant: 'destructive' })
     }
+    duplicatingRef.current = false
+    setDuplicating(false)
   }
 
   return (
@@ -137,11 +145,12 @@ export function EditSheet({
             <Button
               type="button"
               variant="ghost"
+              disabled={duplicating}
               onClick={dup}
               className="mx-auto h-9 rounded-xl px-4 text-[13px] font-semibold text-brand hover:bg-brand/10 hover:text-brand"
             >
               <Copy className="mr-2 h-4 w-4" aria-hidden />
-              Duplizieren
+              {duplicating ? 'Dupliziert …' : 'Duplizieren'}
             </Button>
             <DeleteFooter key={targetId(target)} label={KIND_LABEL[target.kind]} onDelete={() => target && onDeleteTarget(target)} />
           </DrawerFooter>

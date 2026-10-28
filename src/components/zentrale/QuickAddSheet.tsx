@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Segmented } from './bits'
 import { EventForm, NoteForm, TaskForm, TransactionForm } from './forms'
 import type { ParsedEntry, QuickTab, TransactionItem } from '@/lib/zentrale/types'
+import { parseQuickText } from '@/lib/zentrale/quickparse'
 import { cn } from '@/lib/utils'
 
 const SMART_INPUT =
@@ -44,12 +45,15 @@ export function QuickAddSheet({
   onOpenChange,
   onSaved,
   initialTab = 'event',
+  initialDate,
   transactions,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   onSaved: () => void
   initialTab?: QuickTab
+  /** Vorbelegtes Datum, z. B. der im Kalender angetippte Tag. */
+  initialDate?: string | null
   /** Frühere Buchungen -> Eingabe-Merker (Vorschläge im Buchungsformular). */
   transactions?: TransactionItem[]
 }) {
@@ -66,7 +70,8 @@ export function QuickAddSheet({
   // Spracherkennung nur nach dem Mount prüfen (Hydration-sicher) und beim Schließen sauber beenden
   useEffect(() => {
     const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }
-    setSpeechSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition))
+    const supported = !!(w.SpeechRecognition || w.webkitSpeechRecognition)
+    queueMicrotask(() => setSpeechSupported(supported))
     return () => {
       try {
         recRef.current?.abort()
@@ -85,6 +90,13 @@ export function QuickAddSheet({
   /** Sheet schließen -> Vorschau & Eingabe verwerfen, damit beim nächsten Öffnen alles blank ist. */
   function handleClose(next: boolean) {
     if (!next) {
+      try {
+        recRef.current?.abort()
+      } catch {
+        /* ignorieren */
+      }
+      setListening(false)
+      setTab(initialTab)
       setPrefill(null)
       setPrefillToken((t) => t + 1)
       setSmart('')
@@ -92,11 +104,17 @@ export function QuickAddSheet({
     onOpenChange(next)
   }
 
-  /** KI-Schnelleingabe: eine Zeile -> klassifiziertes, vorausgefülltes Formular. */
+  /** Schnelleingabe: lokale deutsche Erkennung zuerst (sofort/offline), Server nur als Fallback. */
   async function runParse(textOverride?: string) {
     const text = (textOverride ?? smart).trim()
     if (!text || parsing) return
     setParsing(true)
+    const local = parseQuickText(text)
+    if (local) {
+      applyEntry(local, true)
+      setParsing(false)
+      return
+    }
     try {
       const res = await fetch('/api/parse', {
         method: 'POST',
@@ -104,12 +122,7 @@ export function QuickAddSheet({
         body: JSON.stringify({ text }),
       })
       if (!res.ok) throw new Error()
-      const entry = (await res.json()) as ParsedEntry
-      setTab(entry.kind)
-      setPrefill(entry)
-      setPrefillToken((t) => t + 1)
-      setSmart('')
-      toast({ title: 'Vorschau ausgefüllt.', description: 'Bitte kurz prüfen und speichern.' })
+      applyEntry((await res.json()) as ParsedEntry, false)
     } catch {
       toast({ title: 'Nicht erkannt.', description: 'Bitte direkt im Formular erfassen.', variant: 'destructive' })
     } finally {
@@ -117,7 +130,18 @@ export function QuickAddSheet({
     }
   }
 
-  /** Diktat starten (oder laufendes Diktat stoppen); Ergebnis läuft in dieselbe KI-Verarbeitung. */
+  function applyEntry(entry: ParsedEntry, local: boolean) {
+    setTab(entry.kind)
+    setPrefill(entry)
+    setPrefillToken((t) => t + 1)
+    setSmart('')
+    toast({
+      title: local ? 'Lokal erkannt.' : 'Vorschau ausgefüllt.',
+      description: local ? 'Ohne KI erkannt – bitte kurz prüfen.' : 'Bitte kurz prüfen und speichern.',
+    })
+  }
+
+  /** Diktat starten (oder laufendes Diktat stoppen); Ergebnis läuft in dieselbe Verarbeitung. */
   function toggleDictation() {
     if (listening) {
       try {
@@ -231,7 +255,7 @@ export function QuickAddSheet({
           <p className="mt-1.5 text-[11px] leading-snug text-stone-500">
             {listening
               ? 'Die Zentrale hört zu – sprich deinen Eintrag in einem Satz.'
-              : 'Kurz eintippen oder Mikrofon antippen – Typ, Datum & Betrag werden erkannt und vor ausgefüllt.'}
+              : 'Kurz eintippen oder Mikrofon antippen – Typ, Datum & Betrag werden erkannt, auch ohne KI-Verbindung.'}
           </p>
         </div>
         <div className="px-4">
@@ -249,13 +273,19 @@ export function QuickAddSheet({
         <div className="max-h-[60dvh] overflow-y-auto px-4 pb-6 pt-4">
           {tab === 'event' && (
             <EventForm
-              key={`new-event-${initialTab}-${prefillToken}`}
+              key={`new-event-${initialTab}-${initialDate ?? ''}-${prefillToken}`}
               prefill={prefill?.kind === 'event' ? prefill : undefined}
+              defaultDate={initialDate ?? undefined}
               onDone={handleDone}
             />
           )}
           {tab === 'task' && (
-            <TaskForm key={`new-task-${initialTab}-${prefillToken}`} prefill={prefill?.kind === 'task' ? prefill : undefined} onDone={handleDone} />
+            <TaskForm
+              key={`new-task-${initialTab}-${initialDate ?? ''}-${prefillToken}`}
+              prefill={prefill?.kind === 'task' ? prefill : undefined}
+              defaultDate={initialDate ?? undefined}
+              onDone={handleDone}
+            />
           )}
           {tab === 'transaction' && (
             <TransactionForm

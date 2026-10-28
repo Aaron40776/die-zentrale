@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Loader2, PiggyBank, RefreshCw, Wallet } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Loader2, PiggyBank, RefreshCw, Search, Wallet } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input'
 import { EmptyHint, SectionTitle, SkeletonRow } from '@/components/zentrale/bits'
 import { DonutChart } from '@/components/zentrale/DonutChart'
 import { TrendChart } from '@/components/zentrale/TrendChart'
-import { dayDiff, dayKey, fmtEur, isoFromInput } from '@/lib/zentrale/date'
-import { forecastLabel, forecastMonthEnd } from '@/lib/zentrale/finance'
+import { dayDiff, dayKey, fmtEur } from '@/lib/zentrale/date'
+import { forecastLabel, forecastMonthEnd, isPlannedEntry, monthlyEquivalent } from '@/lib/zentrale/finance'
+import { parseAmount } from '@/lib/zentrale/money'
 import { CATEGORY_COLORS, RECURRING_LABELS, type EditTarget, type TransactionItem } from '@/lib/zentrale/types'
-import { apiSend, apiSendJson } from '@/lib/zentrale/useZentrale'
+
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -23,16 +24,19 @@ interface Props {
   onChanged?: () => void
   /** Öffnet die Schnellerfassung (für die Aktionsfläche im leeren Zustand). */
   onQuickAdd?: () => void
+  /** Fixposten einbuchen (zentral in page.tsx, damit auch die Heute-Ansicht buchen kann). */
+  onBookFixed?: (t: TransactionItem) => void
+  bookingId?: string | null
+  onSearch?: () => void
 }
 
 type Filter = 'alle' | 'INCOME' | 'EXPENSE'
 
 /** Finanzen: Saldo, Monatsbilanz mit Monatsnavigation, 6-Monats-Verlauf, Kategorien-Donut, Budget, Fixposten & Buchungen. */
-export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuickAdd }: Props) {
+export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuickAdd, onBookFixed, bookingId = null, onSearch }: Props) {
   const { toast } = useToast()
   const [filter, setFilter] = useState<Filter>('alle')
   const [monthOffset, setMonthOffset] = useState(0) // 0 = laufender Monat
-  const [bookingId, setBookingId] = useState<string | null>(null)
 
   // Monatsbudget
   const [budget, setBudget] = useState<number | null>(null)
@@ -59,8 +63,8 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
   }
 
   async function saveBudget() {
-    const value = Number(budgetInput.replace(',', '.'))
-    if (!budgetInput.trim() || Number.isNaN(value) || value <= 0) {
+    const value = parseAmount(budgetInput)
+    if (!budgetInput.trim() || value === null || value <= 0) {
       toast({ title: 'Bitte einen gültigen Betrag angeben.', variant: 'destructive' })
       return
     }
@@ -102,33 +106,7 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
   }
 
   const now = new Date()
-  const balance = transactions.reduce((s, t) => s + (t.type === 'INCOME' ? t.amount : -t.amount), 0)
-
-  /** Fixposten mit einem Tipp einbuchen: echte Buchung heute + Fälligkeit rückt automatisch weiter. */
-  async function bookFixed(t: TransactionItem) {
-    if (bookingId) return
-    setBookingId(t.id)
-    const created = await apiSendJson<TransactionItem>('/api/transactions', 'POST', {
-      title: t.title,
-      amount: t.amount,
-      type: t.type,
-      category: t.category,
-      date: isoFromInput(dayKey(new Date())),
-      recurring: 'NONE',
-    })
-    if (created) {
-      // Fälligkeit explizit um eine Periode weiterschieben (serverseitig, monatsklemmend)
-      await apiSend(`/api/transactions/${t.id}`, 'PATCH', { advance: true })
-      toast({
-        title: `${t.title} gebucht.`,
-        description: `${t.type === 'INCOME' ? '+' : '−'}${fmtEur(t.amount)} für heute erfasst · nächste Fälligkeit aktualisiert.`,
-      })
-      onChanged?.()
-    } else {
-      toast({ title: 'Buchen fehlgeschlagen.', variant: 'destructive' })
-    }
-    setBookingId(null)
-  }
+  const balance = transactions.filter((t) => !isPlannedEntry(t, now)).reduce((s, t) => s + (t.type === 'INCOME' ? t.amount : -t.amount), 0)
 
   // Gewählter Monat (Monatsnavigation)
   const viewMonth = new Date(now.getFullYear(), now.getMonth() - monthOffset, 1)
@@ -136,19 +114,29 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
   const monthLabel = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(viewMonth)
   const monthShortLabel = new Intl.DateTimeFormat('de-DE', { month: 'short' }).format(viewMonth)
   const monthTx = transactions.filter((t) => dayKey(new Date(t.date)).slice(0, 7) === monthKey)
-  const inSum = monthTx.filter((t) => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0)
-  const outSum = monthTx.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
+  // Geplante (zukünftige) Einmal-Buchungen zählen erst, wenn sie gebucht sind.
+  const bookedMonthTx = monthTx.filter((t) => !isPlannedEntry(t, now))
+  const inSum = bookedMonthTx.filter((t) => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0)
+  const outSum = bookedMonthTx.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
   const monthNet = inSum - outSum
 
   const sliceMap = new Map<string, number>()
-  for (const t of monthTx.filter((x) => x.type === 'EXPENSE' && x.category !== 'Einkommen')) {
+  for (const t of bookedMonthTx.filter((x) => x.type === 'EXPENSE' && x.category !== 'Einkommen')) {
     sliceMap.set(t.category, (sliceMap.get(t.category) ?? 0) + t.amount)
   }
   const slices = [...sliceMap.entries()].sort((a, b) => b[1] - a[1])
 
-  // Budget-Fortschritt nur im laufenden Monat sinnvoll
-  const budgetPct = budget && budget > 0 ? Math.min(100, Math.round((outSum / budget) * 100)) : 0
-  const budgetBar = budgetPct >= 100 ? 'bg-red-500' : budgetPct >= 70 ? 'bg-amber-400' : 'bg-green-500'
+  const fx = forecastMonthEnd(transactions, balance)
+
+  // Budget-Fortschritt nur im laufenden Monat sinnvoll. Geplante Posten zählen
+  // mit: Sonst stünde die Ampel auf Grün, obwohl die Miete noch abgeht.
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const daysLeftInMonth = Math.max(1, daysInMonth - now.getDate() + 1)
+  const budgetOut = outSum + fx.plannedOut
+  const budgetPct = budget && budget > 0 ? Math.round((budgetOut / budget) * 100) : 0
+  const budgetBarPct = Math.min(100, budgetPct)
+  const overBudget = budget !== null && budgetOut > budget
+  const budgetBar = overBudget ? 'bg-red-500' : budgetPct >= 70 ? 'bg-amber-400' : 'bg-green-500'
 
   const fixed = transactions
     .filter((t) => t.recurring !== 'NONE')
@@ -159,17 +147,19 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
     })
   const fixedMonthly = fixed
     .filter((t) => t.type === 'EXPENSE')
-    .reduce((s, t) => s + (t.recurring === 'MONTHLY' ? t.amount : t.recurring === 'YEARLY' ? t.amount / 12 : (t.amount * 52) / 12), 0)
-  const fx = forecastMonthEnd(transactions, balance)
+    .reduce((s, t) => s + monthlyEquivalent(t), 0)
+  const budgetLeft = budget !== null ? budget - budgetOut : 0
 
   // Vergangene 6 Monate – gibt es überhaupt Daten, sonst Chart weglassen
   const hasHistory = transactions.some((t) => {
+    if (isPlannedEntry(t, now)) return false
     const d = new Date(t.date)
     const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + now.getMonth() - d.getMonth()
     return diffMonths >= 0 && diffMonths <= 5
   })
 
   const list = monthTx
+    .filter((t) => t.recurring === 'NONE')
     .filter((t) => filter === 'alle' || t.type === filter)
     .sort((a, b) => (a.date > b.date ? -1 : 1))
 
@@ -191,6 +181,11 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
           <h1 className="text-xl font-bold tracking-tight text-foreground">Finanzen</h1>
           <p className="text-xs text-muted-foreground">Saldo, Budget und alle Buchungen an einem Ort.</p>
         </div>
+        {onSearch && (
+          <button type="button" onClick={onSearch} aria-label="Suchen" className="hit flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-stone-600 hover:text-foreground">
+            <Search className="h-4.5 w-4.5" aria-hidden />
+          </button>
+        )}
         <button
           type="button"
           onClick={openBudgetDialog}
@@ -228,10 +223,10 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">
-                <span className="font-semibold text-green-300">+{fmtEur(inSum)}</span> {monthOffset === 0 ? 'ein · Monat' : `ein · ${monthShortLabel}`}
+                <span className="font-semibold text-green-300">{inSum > 0 ? `+${fmtEur(inSum)}` : fmtEur(0)}</span> {monthOffset === 0 ? 'ein · Monat' : `ein · ${monthShortLabel}`}
               </span>
               <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">
-                <span className="font-semibold text-red-300">−{fmtEur(outSum)}</span> {monthOffset === 0 ? 'aus · Monat' : `aus · ${monthShortLabel}`}
+                <span className="font-semibold text-red-300">{outSum > 0 ? `−${fmtEur(outSum)}` : fmtEur(0)}</span> {monthOffset === 0 ? 'aus · Monat' : `aus · ${monthShortLabel}`}
               </span>
               <span
                 className={cn(
@@ -247,13 +242,22 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
                   Grundlast {fmtEur(fixedMonthly)}/M.
                 </span>
               )}
+              {monthOffset === 0 && budget === null && (
+                <button
+                  type="button"
+                  onClick={openBudgetDialog}
+                  className="rounded-full border border-brand/40 bg-brand/10 px-2.5 py-1 text-[11px] font-semibold text-brand transition-colors hover:bg-brand/20"
+                >
+                  Monatsbudget festlegen
+                </button>
+              )}
               {monthOffset === 0 && fx.movements > 0 && (
                 <span
                   className={cn(
                     'rounded-full px-2.5 py-1 text-[11px] font-medium',
                     fx.forecast >= 0 ? 'bg-green-500/15 text-green-300' : 'bg-red-500/15 text-red-300'
                   )}
-                  title="Aktueller Saldo plus alle Fixposten, die bis Monatsende noch fällig sind"
+                  title="Aktueller Saldo plus alle bis Monatsende geplanten Posten"
                 >
                   Prognose Monatsende <span className="font-semibold">{forecastLabel(fx)}</span>
                 </span>
@@ -268,21 +272,31 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
                     <PiggyBank className="h-3.5 w-3.5 text-hero" aria-hidden />
                     Budget {monthLabel.split(' ')[0]}
                   </span>
-                  <span className="tabular-nums">
-                    {fmtEur(outSum)} von {fmtEur(budget)} ({budgetPct} %)
+                  <span className="tabular-nums" title="Gebuchte Ausgaben plus noch geplante Posten">
+                    {fmtEur(budgetOut)} von {fmtEur(budget)} ({budgetPct} %)
                   </span>
                 </div>
                 <div
                   className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/10"
                   role="progressbar"
-                  aria-valuenow={budgetPct}
+                  aria-valuenow={budgetBarPct}
                   aria-valuemin={0}
                   aria-valuemax={100}
-                  aria-label="Ausgaben im Vergleich zum Monatsbudget"
+                  aria-label="Ausgaben und geplante Posten im Vergleich zum Monatsbudget"
                 >
-                  <div className={cn('h-full rounded-full transition-all', budgetBar)} style={{ width: `${budgetPct}%` }} />
+                  <div className={cn('h-full rounded-full transition-all', budgetBar)} style={{ width: `${budgetBarPct}%` }} />
                 </div>
-                {budgetPct >= 100 && <p className="mt-1.5 text-[11px] font-medium text-red-300">Budget überschritten – Restmonat so günstig wie möglich halten.</p>}
+                {overBudget ? (
+                  <p className="mt-1.5 text-[11px] font-medium text-red-300">
+                    Budget um {fmtEur(Math.abs(budgetLeft))} überschritten – Restmonat so günstig wie möglich halten.
+                  </p>
+                ) : budgetLeft === 0 ? (
+                  <p className="mt-1.5 text-[11px] font-medium text-amber-300">Budget genau aufgebraucht – keine weiteren Ausgaben einplanen.</p>
+                ) : (
+                  <p className="mt-1.5 text-[11px] text-hero-2">
+                    Noch <span className="font-semibold">{fmtEur(budgetLeft)}</span> verfügbar · {fmtEur(budgetLeft / Math.max(1, daysLeftInMonth))} pro Tag
+                  </p>
+                )}
               </div>
             )}
             </div>
@@ -357,61 +371,61 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
                 return (
                   <div
                     key={t.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Fixposten bearbeiten: ${t.title}`}
-                    onClick={() => onEdit({ kind: 'transaction', transaction: t })}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onEdit({ kind: 'transaction', transaction: t })
-                      }
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
+                    className="flex w-full items-center gap-2 rounded-2xl border border-border bg-card p-2.5 pl-3 text-left shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
                   >
-                    <span
-                      aria-hidden
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
-                      style={{ backgroundColor: `${CATEGORY_COLORS[t.category] ?? '#a8a29e'}1a` }}
+                    <button
+                      type="button"
+                      onClick={() => onEdit({ kind: 'transaction', transaction: t })}
+                      aria-label={`Fixposten bearbeiten: ${t.title}`}
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left"
                     >
-                      <RefreshCw className="h-4 w-4" style={{ color: CATEGORY_COLORS[t.category] ?? '#a8a29e' }} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">{t.title}</span>
-                      <span className={cn('block text-xs', dueNow ? 'font-semibold text-amber-400' : 'text-muted-foreground')}>
-                        {RECURRING_LABELS[t.recurring]}
-                        {dueDiff !== null && (
-                          <>
-                            {' · '}
-                            {dueNow ? 'heute fällig' : dueDiff === 1 ? 'morgen fällig' : `nächste Fälligkeit in ${dueDiff} T.`}
-                          </>
-                        )}
+                      <span
+                        aria-hidden
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
+                        style={{ backgroundColor: `${CATEGORY_COLORS[t.category] ?? '#a8a29e'}1a` }}
+                      >
+                        <RefreshCw className="h-4 w-4" style={{ color: CATEGORY_COLORS[t.category] ?? '#a8a29e' }} />
                       </span>
-                    </span>
-                    <span className={cn('shrink-0 text-sm font-semibold tabular-nums', t.type === 'INCOME' ? 'text-green-400' : 'text-foreground')}>
-                      {t.type === 'INCOME' ? '+' : '−'}
-                      {fmtEur(t.amount)}
-                    </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">{t.title}</span>
+                        <span className={cn('block text-xs', dueNow ? 'font-semibold text-amber-400' : 'text-muted-foreground')}>
+                          {RECURRING_LABELS[t.recurring]}
+                          {dueDiff !== null && (
+                            <>
+                              {' · '}
+                              {dueDiff < 0
+                                ? `${-dueDiff} ${-dueDiff === 1 ? 'Tag' : 'Tage'} überfällig`
+                                : dueDiff === 0
+                                  ? 'heute fällig'
+                                  : dueDiff === 1
+                                    ? 'morgen fällig'
+                                    : `nächste Fälligkeit in ${dueDiff} T.`}
+                            </>
+                          )}
+                        </span>
+                      </span>
+                      <span className={cn('shrink-0 text-sm font-semibold tabular-nums', t.type === 'INCOME' ? 'text-green-400' : 'text-foreground')}>
+                        {t.type === 'INCOME' ? '+' : '−'}
+                        {fmtEur(t.amount)}
+                      </span>
+                      {!dueNow && <ChevronRight className="h-4 w-4 shrink-0 text-stone-600" aria-hidden />}
+                    </button>
                     {dueNow ? (
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          void bookFixed(t)
-                        }}
+                        onClick={() => onBookFixed?.(t)}
                         aria-label={`${t.title} jetzt für heute buchen`}
-                        className="hit flex h-9 shrink-0 items-center gap-1 rounded-full bg-brand px-3 text-[12px] font-bold text-brand-ink transition-transform active:scale-95"
+                        disabled={bookingId !== null}
+                        className="hit flex h-9 shrink-0 items-center gap-1 rounded-full bg-brand px-3 text-[12px] font-bold text-brand-ink transition-transform active:scale-95 disabled:opacity-60"
                       >
                         {bookingId === t.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                         ) : (
                           <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
                         )}
-                        Gebucht
+                        Buchen
                       </button>
-                    ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0 text-stone-600" aria-hidden />
-                    )}
+                    ) : null}
                   </div>
                 )
               })}
@@ -477,6 +491,7 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
                         <span className="block text-[11px] text-stone-500">
                           {t.category}
                           {t.recurring !== 'NONE' ? ` · ${RECURRING_LABELS[t.recurring]}` : ''}
+                          {dayDiff(new Date(t.date)) > 0 ? ' · geplant' : ''}
                         </span>
                       </span>
                       <span className={cn('shrink-0 text-sm font-semibold tabular-nums', t.type === 'INCOME' ? 'text-green-400' : 'text-foreground')}>

@@ -16,13 +16,24 @@ interface DonutSeg extends DonutSlice {
 
 // Reine Hilfsfunktion (keine Mutation von Render-Variablen)
 function buildSegs(slices: DonutSlice[], total: number, circumference: number): DonutSeg[] {
+  // Größte-Reste-Verfahren: gerundete Prozente ergeben zusammen immer 100 %.
+  const raw = slices.map((s) => (total > 0 ? (s.amount / total) * 100 : 0))
+  const pcts = raw.map((v) => Math.floor(v))
+  let rest = total > 0 ? 100 - pcts.reduce((a, b) => a + b, 0) : 0
+  const order = raw.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac)
+  for (const { i } of order) {
+    if (rest <= 0) break
+    pcts[i] += 1
+    rest -= 1
+  }
+
   const segs: DonutSeg[] = []
   let acc = 0
-  for (const s of slices) {
+  slices.forEach((s, i) => {
     const frac = total > 0 ? s.amount / total : 0
-    segs.push({ ...s, len: Math.max(frac * circumference - 2.5, 0.6), offset: acc, pct: Math.round(frac * 100) })
+    segs.push({ ...s, len: Math.max(frac * circumference - 2.5, 0.6), offset: acc, pct: pcts[i] })
     acc += frac * circumference
-  }
+  })
   return segs
 }
 

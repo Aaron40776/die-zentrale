@@ -13,7 +13,7 @@ const RECURRING_LABEL: Record<string, string> = {
 /** CSV-Export aller Buchungen (Excel/Numbers-freundlich: Semikolon, BOM, Komma-Dezimaltrenner). */
 export async function GET() {
   try {
-    const rows = await db.transaction.findMany({ orderBy: { date: 'asc' } })
+    const rows = await db.transaction.findMany({ where: { recurring: 'NONE' }, orderBy: { date: 'asc' } })
 
     const esc = (s: string) => `"${s.replace(/"/g, '""')}"`
     const lines = ['Datum;Titel;Kategorie;Art;Betrag (EUR);Wiederholung']

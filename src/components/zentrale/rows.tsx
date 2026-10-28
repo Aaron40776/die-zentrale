@@ -3,7 +3,7 @@
 import { useRef, useState, type ReactNode, type TouchEvent } from 'react'
 import { ArrowRight, Cake, CalendarDays, Check, ChevronRight, MapPin, RefreshCw, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { dayDiff, eventDate, fmtTime } from '@/lib/zentrale/date'
+import { dayDiff, eventDate, fmtTime, weekdayShort } from '@/lib/zentrale/date'
 import { PRIORITY_TONE, RECURRING_LABELS, type EventItem, type TaskItem } from '@/lib/zentrale/types'
 import { CountdownChip, DoneToggle, PriorityBar, PriorityPip } from './bits'
 
@@ -104,7 +104,7 @@ export function SwipeRow({
       )}
       {/* Hintergrund-Ebene: löschen (links wischen) */}
       {canDelete && (
-        <div className="absolute inset-y-0 right-0 flex w-28 items-center justify-end pr-3" aria-hidden={dx >= 0}>
+        <div className="absolute inset-y-0 right-0 flex w-28 items-center justify-end pr-3">
           <button
             type="button"
             tabIndex={dx < 0 ? 0 : -1}
@@ -144,18 +144,36 @@ export function SwipeRow({
   )
 }
 
-/** Termin-Zeile: farbiger Balken = manuelle Wichtigkeit; Jahrestage mit Torte + Countdown. */
-export function EventRow({ event, onEdit, compact }: { event: EventItem; onEdit: () => void; compact?: boolean }) {
+/**
+ * Termin-Zeile: farbiger Balken = manuelle Wichtigkeit; Jahrestage mit Torte + Countdown.
+ * `occurrenceDate` ist die konkrete Ausgabe eines wiederkehrenden Termins (sonst die nächste).
+ */
+export function EventRow({
+  event,
+  onEdit,
+  compact,
+  occurrenceDate,
+  showDate,
+}: {
+  event: EventItem
+  onEdit: () => void
+  compact?: boolean
+  occurrenceDate?: string
+  /** Datum zusätzlich zur Uhrzeit zeigen (z. B. in der 7-Tage-Liste). */
+  showDate?: boolean
+}) {
+  const recurring = event.recurring !== 'NONE'
   const yearly = event.recurring === 'YEARLY'
-  const effDate = eventDate(event)
+  const effDate = occurrenceDate ? new Date(occurrenceDate) : eventDate(event)
   const allDay = fmtTime(event.date) === '00:00'
   const sub = event.place ?? event.note
   const diff = dayDiff(effDate)
+  const recurrenceLabel = RECURRING_LABELS[event.recurring]?.toLowerCase()
   return (
     <div
       role="button"
       tabIndex={0}
-      aria-label={`Termin bearbeiten: ${event.title}${yearly ? ' (jährlich)' : ''}`}
+      aria-label={`Termin bearbeiten: ${event.title}${recurring ? ` (${recurrenceLabel})` : ''}`}
       onClick={onEdit}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -170,7 +188,12 @@ export function EventRow({ event, onEdit, compact }: { event: EventItem; onEdit:
         {yearly ? <Cake className="h-4 w-4 text-brand" /> : <CalendarDays className="h-4 w-4 text-muted-foreground" />}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{event.title}</p>
+        <p className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+          {recurring && !yearly && (
+            <RefreshCw className="h-3 w-3 shrink-0 text-brand" aria-label={`Wiederholt sich ${recurrenceLabel}`} />
+          )}
+          {event.title}
+        </p>
         {sub && !compact && (
           <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
             <MapPin className="h-3 w-3 shrink-0 text-stone-500" aria-hidden />
@@ -178,9 +201,16 @@ export function EventRow({ event, onEdit, compact }: { event: EventItem; onEdit:
           </p>
         )}
       </div>
+      {showDate && !yearly && diff > 0 && (
+        <span className="shrink-0 text-[11px] font-semibold text-stone-400">
+          {diff === 1
+            ? 'morgen'
+            : `${weekdayShort(effDate)} ${String(effDate.getDate()).padStart(2, '0')}.${String(effDate.getMonth() + 1).padStart(2, '0')}.`}
+        </span>
+      )}
       {yearly ? (
         <span
-          title={`Jährlich – nächstes Datum: ${new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(effDate)}`}
+          title={`Jährlich – nächste Ausgabe: ${new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(effDate)}`}
           className={cn(
             'inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold tabular-nums',
             diff === 0 ? 'bg-green-500/15 text-green-400' : 'bg-sky-500/15 text-sky-400'

@@ -78,20 +78,95 @@ export function isoFromInput(dateStr: string, timeStr?: string): string | null {
 }
 
 /**
- * Effektives Termin-Datum: jährliche Termine (Geburtstage/Jahrestage) rollen
- * automatisch auf die nächste kommende Ausgabe, normale Termine bleiben fix.
+ * Monats-Addition mit Klemmung: 31.1. + 1 Monat = 28./29.2., danach wieder 31.3.
+ * `anchorDay` bewahrt den ursprünglichen Monatstag über mehrere Sprünge hinweg.
+ */
+export function addMonthsClamped(d: Date, n: number, anchorDay?: number): Date {
+  const day = anchorDay ?? d.getDate()
+  const x = new Date(d.getFullYear(), d.getMonth() + n, 1, d.getHours(), d.getMinutes(), 0, 0)
+  const daysInMonth = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate()
+  x.setDate(Math.min(day, daysInMonth))
+  return x
+}
+
+/** Nächste Ausgabe einer Wiederholung (lokal gerechnet, damit Sommerzeit keine Tage verschiebt). */
+export function nextRecurringDate(from: Date, recurring: string, anchorDay?: number): Date | null {
+  const d = new Date(from)
+  switch (recurring) {
+    case 'DAILY':
+      d.setDate(d.getDate() + 1)
+      return d
+    case 'WEEKLY':
+      d.setDate(d.getDate() + 7)
+      return d
+    case 'MONTHLY':
+      return addMonthsClamped(d, 1, anchorDay ?? d.getDate())
+    case 'YEARLY':
+      return addMonthsClamped(d, 12, anchorDay ?? d.getDate())
+    default:
+      return null
+  }
+}
+
+/** k-te Ausgabe ab dem Ursprungsdatum – ohne Drift, weil immer vom Original gerechnet wird. */
+function occurrenceAt(base: Date, recurring: string, k: number, anchorDay: number): Date {
+  if (k === 0) return new Date(base)
+  if (recurring === 'DAILY') {
+    const d = new Date(base)
+    d.setDate(d.getDate() + k)
+    return d
+  }
+  if (recurring === 'WEEKLY') {
+    const d = new Date(base)
+    d.setDate(d.getDate() + 7 * k)
+    return d
+  }
+  if (recurring === 'MONTHLY') return addMonthsClamped(base, k, anchorDay)
+  if (recurring === 'YEARLY') return addMonthsClamped(base, 12 * k, anchorDay)
+  return new Date(base)
+}
+
+/**
+ * Effektives Termin-Datum: wiederkehrende Termine rollen automatisch auf ihre
+ * nächste anstehende Ausgabe, normale Termine bleiben fix.
  */
 export function eventDate(e: { date: string; recurring?: string | null }): Date {
-  const d = new Date(e.date)
-  if (e.recurring !== 'YEARLY') return d
+  const base = new Date(e.date)
+  const recurring = e.recurring ?? 'NONE'
+  if (recurring === 'NONE') return base
   const today = startOfDay(new Date())
-  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes())
-  let guard = 0
-  while (x.getTime() < today.getTime() && guard < 200) {
-    x.setFullYear(x.getFullYear() + 1)
-    guard += 1
+  if (base >= today) return base
+  const anchorDay = base.getDate()
+  for (let k = 1; k <= 20000; k++) {
+    const occ = occurrenceAt(base, recurring, k, anchorDay)
+    if (occ >= today) return occ
   }
-  return x
+  return base
+}
+
+/**
+ * Alle Ausgaben eines Termins in einem Zeitfenster (Kalender-Monat, 7-Tage-Liste).
+ * Nicht wiederkehrende Termine liefern höchstens den einen Termin.
+ */
+export function eventOccurrences(
+  e: { date: string; recurring?: string | null },
+  from: Date,
+  to: Date
+): Date[] {
+  const base = new Date(e.date)
+  const recurring = e.recurring ?? 'NONE'
+  const start = startOfDay(from)
+  const end = new Date(to)
+  end.setHours(23, 59, 59, 999)
+  if (recurring === 'NONE') return base >= start && base <= end ? [base] : []
+  const anchorDay = base.getDate()
+  const out: Date[] = []
+  for (let k = 0; k <= 20000; k++) {
+    const occ = occurrenceAt(base, recurring, k, anchorDay)
+    if (occ.getTime() > end.getTime()) break
+    if (occ.getTime() >= start.getTime()) out.push(occ)
+  }
+  return out
 }
 
 /** Fälligkeits-Logik: Farbe + Text (Countdown) für Datum/Task. */

@@ -29,6 +29,7 @@ model Task {
   dueDate     DateTime?
   priority    String    @default("MEDIUM") // HIGH | MEDIUM | LOW
   recurring   String    @default("NONE") // NONE | DAILY | WEEKLY | MONTHLY | YEARLY
+  recurringAnchor Int?  // ursprünglicher Monatstag, verhindert Drift bei Monatsenden
   done        Boolean   @default(false)
   completedAt DateTime?
   createdAt   DateTime  @default(now())

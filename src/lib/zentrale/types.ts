@@ -30,6 +30,8 @@ export interface TaskItem {
   dueDate: string | null
   priority: Priority
   recurring: Recurring
+  /** Ursprünglicher Monatstag bei Routinen (verhindert Drift am Monatsende). */
+  recurringAnchor?: number | null
   done: boolean
   completedAt: string | null
 }
@@ -93,8 +95,8 @@ export const RECURRING_LABELS: Record<Recurring, string> = {
 /** Wiederholungen, die für Buchungen (Abo/Fixposten) zur Auswahl stehen. */
 export const TX_RECURRING: Recurring[] = ['NONE', 'WEEKLY', 'MONTHLY', 'YEARLY']
 
-/** Wiederholungen für Termine: nur jährlich (Geburtstage & Jahrestage). */
-export const EVENT_RECURRING: Recurring[] = ['NONE', 'YEARLY']
+/** Wiederholungen für Termine: regelmäßige Termine (Sport, Stammtisch) + Jahrestage. */
+export const EVENT_RECURRING: Recurring[] = ['NONE', 'WEEKLY', 'MONTHLY', 'YEARLY']
 
 // 5-Farben-Logik: rot = dringend, ocker = bald, blau = geplant, grau = ruhend, grün = positiv
 export type Tone = 'urgent' | 'soon' | 'planned' | 'static' | 'positive'
@@ -132,7 +134,7 @@ export const PRIORITY_TONE: Record<Priority, Tone> = {
 
 // KI-Schnelleingabe: strukturiertes Ergebnis von /api/parse
 export type ParsedEntry =
-  | { kind: 'event'; title: string; date: string; time: string | null; place: string | null; priority: Priority; yearly: boolean }
+  | { kind: 'event'; title: string; date: string; time: string | null; place: string | null; priority: Priority; yearly: boolean; recurring?: Recurring }
   | { kind: 'task'; title: string; dueDate: string | null; priority: Priority; recurring: Recurring }
   | { kind: 'transaction'; title: string; amount: number; type: TxType; category: string; date: string; recurring: Recurring }
   | { kind: 'note'; title: string; content: string }

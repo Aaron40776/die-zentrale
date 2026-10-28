@@ -2,7 +2,7 @@
 
 > **Zweck dieses Dokuments:** Ein anderer KI-Assistent (oder Mensch) soll ohne Vorwissen den
 > kompletten Stand der App verstehen und direkt weiterentwickeln können. Es beschreibt den Stand
-> **v7** (Oktober 2026) — vollständig implementiert und browser-geprüft.
+> **v9** (Oktober 2026) — vollständig implementiert und browser-geprüft.
 > Ergänzende Design-Quelle: `docs/Konzeptdokument.pdf`, Wireframe: `docs/mockup.png`.
 
 ---
@@ -12,10 +12,10 @@
 1. **Lies dieses Dokument vollständig**, bevor du etwas änderst. Kritisch: §2 (Prinzipien),
    §8 (Kernlogik — hier liegen die leichtesten Fehlbau-Fallen) und §11 (bewusst
    abgelehnte Ideen — nicht erneut vorschlagen oder einbauen).
-2. **Setup:** `bun install && bunx prisma generate && bun run dev` → http://localhost:3000.
+2. **Setup:** `npm install && npm run db:generate && npm run dev` → http://localhost:3000 (Bun funktioniert alternativ).
    Der leere Willkommens-Screen ist der korrekte Startzustand, kein Bug.
 3. **Ändern → prüfen:** Nach jeder Änderung QA nach §12 (Browser 393×852 UND 1280×800,
-   alle berührten Flows durchklicken, danach DB wippen: `bun prisma/seed.ts`).
+   alle berührten Flows durchklicken, danach DB wippen: `npm run seed`).
 4. **Konventionen:** lint + `bunx tsc --noEmit` müssen 0 Fehler sein; bei sichtbaren
    Änderungen die Versionszeile im SettingsSheet hochzählen; bei Shell-Änderungen die
    CACHE-Konstante in `public/sw.js` bumpen (sonst sehen installierte Geräte nichts Neues).
@@ -43,7 +43,7 @@ optimiert werden, darf aber nicht kaputt sein.
 1. **Dark-Only.** Es gibt keinen hellen Modus. Basis-Schwarz `#0c0b09`, Karten `#171411`.
 2. **Keine Demo-Daten.** Die App startet leer (Willkommens-Screen mit Direktaktionen). Alle
    Daten kommen vom Nutzer selbst. Vor jedem QA-Durchlauf: Testdaten einspielen, danach DB
-   wieder wippen (`bun prisma/seed.ts`).
+   wieder wippen (`npm run seed`).
 3. **iPhone 15 Pro zuerst.** Safe-Areas (Dynamic Island oben, Home-Indicator unten) respektiert
    via `viewport-fit=cover` + `env(safe-area-inset-*)`; Touch-Ziele ≥ 44 pt; Inputs 16 px
    (iOS zoomt sonst); `dvh` statt `vh`.
@@ -56,7 +56,7 @@ optimiert werden, darf aber nicht kaputt sein.
 
 | Layer      | Technik |
 |------------|---------|
-| Framework  | Next.js 16 (App Router, React 19, TypeScript), Start via **Bun** |
+| Framework  | Next.js 16 (App Router, React 19, TypeScript), Start via **npm** (Bun optional) |
 | Styling    | Tailwind CSS 4 + shadcn/ui-Komponenten (`src/components/ui/`), `tw-animate-css` |
 | Datenbank  | SQLite via Prisma 6 (`db/custom.db`, Schema in `prisma/schema.prisma`) |
 | KI         | `z-ai-web-dev-sdk` **server-only** in `/api/parse` (Schnelleingabe-Parsing) |
@@ -81,8 +81,8 @@ src/
       events/…            CRUD Termine
       tasks/…             CRUD Aufgaben
       notes/…             CRUD Notizen
-      transactions/…      CRUD Buchungen; PATCH {advance:true} = Fixposten weiterschieben
-      parse/route.ts      POST KI-Schnelleingabe (Systemprompt + Normalisierung)
+      transactions/…      CRUD Buchungen; POST /book = Fixposten buchen; PATCH {nextDue} = Buchung rückgängig
+      parse/route.ts      POST Schnelleingabe: lokale deutsche Erkennung, KI nur als Fallback
       budget/route.ts     GET/PUT Monatsbudget (Setting budget_monthly)
       import/route.ts     POST JSON-Backup einspielen
       export/csv/route.ts GET CSV aller Buchungen (Semikolon, BOM, deutsche Zahlen)
@@ -92,10 +92,10 @@ src/
                               Finanz-Snapshot, Überfällig-Sektion
       views/TermineView.tsx   Monatskalender + Tagesfilter + Farb-Punkte + „Alle Termine"
       views/FinanzenView.tsx  Saldo-Karte (card-gold), Budget-Ampel, Prognose, Donut,
-                              6-Monats-Trend, Monatsnav, Filter, Fixposten + „✓ Gebucht"
+                              6-Monats-Trend, Monatsnav, Filter, Fixposten + „✓ Buchen"
       views/AufgabenView.tsx  Segmented (Offen/Heute/Erledigte), Swipe-Hinweis, Snooze
       BottomNav.tsx           schwebende Glas-Leiste + Gold-FAB (Quick-Add)
-      QuickAddSheet.tsx       4 Tabs + SmartBar (KI), Mikrofon-Button, Enter-Parsing
+      QuickAddSheet.tsx       4 Tabs + SmartBar (lokal, KI-Fallback), Mikrofon-Button, Enter-Parsing
       EditSheet.tsx           Bearbeiten / Duplizieren / zweistufig Löschen
       SearchSheet.tsx         globale Suche über alle 4 Bereiche
       SettingsSheet.tsx       JSON-Export/-Import, CSV, Akzent-Swatches, Version
@@ -111,15 +111,16 @@ src/
                               DoneToggle (animiertes Häkchen), Segmented, …
   lib/
     zentrale/types.ts        alle TS-Typen + CATEGORIES + CATEGORY_COLORS + TONE-Maps
-    zentrale/finance.ts      computeNextDue, advanceDue (monatsklemmend), forecastMonthEnd
+    zentrale/finance.ts      advanceDue (monatsklemmend), forecastMonthEnd, isPlannedEntry
+    zentrale/quickparse.ts   lokale deutsche Schnelleingabe (Betrag, Datum, Wiederholung)
     zentrale/date.ts         Datums-Helper (dayDiff, fmtEur, fmtLongDate, eventDate, dueInfo …)
     zentrale/useZentrale.ts  Daten-Laden + CRUD-Calls (fetch-Wrapper)
 prisma/
   schema.prisma              5 Modelle (siehe §5)
-  seed.ts                    WIPPT die DB (leerer Start-Zustand) — `bun prisma/seed.ts`
+  seed.mjs                   WIPPT die DB (leerer Start-Zustand) — `npm run seed`
 public/
   manifest.webmanifest       PWA-Manifest + 3 Shortcuts (Ausgabe/Termin/Aufgabe via ?quick=)
-  sw.js                      Service-Worker, CACHE-Version v6 (bei Shell-Änderung bumpen!)
+  sw.js                      Service-Worker, CACHE-Version v9 (bei Shell-Änderung bumpen!)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 
@@ -128,11 +129,11 @@ public/
 Alle Einträge sind flach, cuid-Primärschlüssel, `createdAt`/`updatedAt` überall.
 
 - **Event** (Termin): `title`, `date` (Datum+Uhrzeit), `place?`, `note?`,
-  `priority: HIGH|MEDIUM|LOW`, `recurring: NONE|YEARLY` (jährlich = Geburtstage/Jahrestage,
-  wandern automatisch ins Folgejahr; `eventDate()` in date.ts rechnet das beim Lesen).
+  `priority: HIGH|MEDIUM|LOW`, `recurring: NONE|WEEKLY|MONTHLY|YEARLY` (jährlich = Geburtstage/
+  Jahrestage; `eventDate()`/`eventOccurrences()` in date.ts rechnen die nächste Ausgabe).
 - **Task** (Aufgabe): `title`, `dueDate?`, `priority`, `done`, `completedAt?`,
-  `recurring: NONE|DAILY|WEEKLY|MONTHLY|YEARLY` (Routine: beim Abhaken wird automatisch die
-  nächste Fälligkeit angelegt).
+  `recurring: NONE|DAILY|WEEKLY|MONTHLY|YEARLY`, `recurringAnchor?` (ursprünglicher Monatstag,
+  verhindert Drift bei Monatsenden). Beim Abhaken wird automatisch die nächste Fälligkeit angelegt.
 - **Transaction** (Buchung): `title`, `amount` (Float > 0), `type: INCOME|EXPENSE`,
   `category` (Whitelist CATEGORIES), `date`, `recurring: NONE|WEEKLY|MONTHLY|YEARLY`,
   `nextDue?` (Fälligkeit des Fixpostens — nur gesetzt wenn recurring ≠ NONE).
@@ -150,8 +151,8 @@ abgestimmte Warmtöne, Einkommen grün).
 | `/api/events`, `/api/events/[id]` | GET/POST, PATCH/DELETE | Termine |
 | `/api/tasks`, `/api/tasks/[id]` | GET/POST, PATCH/DELETE | Aufgaben (PATCH mit `done` setzt completedAt) |
 | `/api/notes`, `/api/notes/[id]` | GET/POST, PATCH/DELETE | Notizen |
-| `/api/transactions`, `/api/transactions/[id]` | GET/POST, PATCH/DELETE | Buchungen; **PATCH `{advance:true}`** = „✓ Gebucht"-Flow: erstellt keine Kopie, schiebt `nextDue` mit `advanceDue()` weiter (monatsklemmend: 31.1. → 28.2.) |
-| `/api/parse` | POST | KI-Schnelleingabe: Text → strukturiertes `ParsedEntry` (siehe §8) |
+| `/api/transactions`, `/api/transactions/[id]`, `/api/transactions/[id]/book` | GET/POST, PATCH/DELETE, POST | Buchungen; **POST `/book`** = „✓ Buchen"-Flow: legt atomar eine reale Buchung an und schiebt `nextDue` mit `advanceDue()` weiter (monatsklemmend: 31.1. → 28.2.) |
+| `/api/parse` | POST | Schnelleingabe: lokale Erkennung zuerst, KI nur als Fallback → `ParsedEntry` (siehe §8) |
 | `/api/budget` | GET/PUT | Monatsbudget; `PUT {amount:null}` entfernt es |
 | `/api/import` | POST | JSON-Backup einspielen |
 | `/api/export/csv` | GET | CSV aller Buchungen (Excel/Numbers-kompatibel) |
@@ -190,23 +191,29 @@ eingestellt war). Diese Farben kommen überall vor: Chips, Kalender-Punkte, Balk
 
 ### Fixposten (Abo/Fixkosten)
 - `nextDue` = nächste Fälligkeit. Anzeige: „heute fällig"/„morgen fällig"/„in X Tagen"
-  (**tagesbasiert** — `computeNextDue` vergleicht seit v7 gegen 0 Uhr heute, nicht mehr gegen
-  `now`; sonst verschwände der „Gebucht"-Knopf am Fälligkeitstag selbst).
-- **„✓ Gebucht"-Knopf** (nur wenn dayDiff ≤ 0, sonst Chevron): erstellt SOFORT eine reale
-  Buchung mit heutigem Datum UND schickt `PATCH {advance:true}` → `nextDue` rückt auf den
-  nächsten Monat (monatsklemmend). Danach Toast + Saldo/Donut-Update live.
+  (**tagesbasiert** — `computeNextDue` vergleicht gegen 0 Uhr heute, nicht gegen `now`;
+  sonst verschwände der „Buchen"-Knopf am Fälligkeitstag selbst).
+- **„✓ Buchen"-Knopf** (nur wenn dayDiff ≤ 0, sonst Chevron): `POST /book` erstellt atomar
+  eine reale Buchung mit heutigem Datum und rückt `nextDue` monatsklemmend weiter. Der Toast
+  bietet 8 s lang „Rückgängig" (löscht die Ist-Buchung und setzt `nextDue` exakt zurück).
 - Prognose: `forecastMonthEnd` rechnet Saldo + fällige Fixposten bis Monatsende
   („Prognose: −120 € bis Monatsende"), Chip in Saldo-Karte + Heute-Snapshot.
+- Das Monatsbudget zählt gebuchte Ausgaben **plus noch geplante Posten**; sonst wäre die
+  Ampel grün, obwohl die Miete noch abgeht. Vergangene Termine erscheinen nicht mehr als
+  rote „Aufmerksamkeit".
 
-### KI-Schnelleingabe (`/api/parse`)
+### Schnelleingabe (`/api/parse`)
+- **Lokal zuerst:** `quickparse.ts` erkennt Beträge (deutsch), Einnahmen, relative Daten,
+  Wochentage, Wiederholungen und Kategorien – sofort und offline. Erst wenn das scheitert,
+  wird die KI gefragt.
 - `z-ai-web-dev-sdk`, thinking disabled, Systemprompt enthält **heutiges Datum** +
   Zeitzone Europe/Berlin, fordert **JSON-only** in genau einem von 4 Formaten (event/task/
   transaction/note).
 - Serverseitige Normalisierung (vertraue der KI nicht blind): `validIsoDate`/`validTime`,
   Betrag > 0, Kategorie **nur aus CATEGORIES-Whitelist** (Prompt enthält Beispiel-Mappings:
   Miete→Wohnen, Netflix→Abos, Gehalt→Einkommen …), `oneOf`-Checks, sonst Fallback Sonstiges.
-- Relative Zeilen wie „morgen", „gestern", „jeden Dienstag" versteht der Prompt (Wiederholung
-  → recurring-Wert).
+- Relative Zeilen wie „morgen", „gestern", „jeden Dienstag" versteht die lokale Erkennung
+  (inkl. Wiederholungs-Wert); der KI-Prompt ist nur noch der Sonderfall-Fallback.
 - Mikrofon: `webkitSpeechRecognition` Feature-Detect nach Mount (Safari iOS unterstützt es
   zwischenzeitlich; fehlt der Support, bleibt der Button unsichtbar), `de-DE`, interimResults
   live im Feld, finale Erkennung → automatisches Parsing. Fehler-Cases: „Mikrofon blockiert" /
@@ -218,13 +225,13 @@ eingestellt war). Diese Farben kommen überall vor: Chips, Kalender-Punkte, Balk
   nur `brand`-Klassen benutzen.
 - `html[data-accent='kupfer'|'salbei']` überschreibt die Variablen; Gold ist Default (kein
   data-Attribut nötig).
-- Kein Flash beim Start: Mini-Skript in `layout.tsx` liest `localStorage['zentrale-accent']`
-  **vor dem Paint** und setzt data-accent.
+- Kein Flash beim Start: Der Server liest das Cookie `zentrale-accent` und setzt
+  `data-accent` bereits im HTML; `AccentSync` gleicht danach localStorage/Cookie ab.
 - Werte: Gold `#c9a84c` (ink `#221a05`), Kupfer `#d08a5a`, Salbei `#a9bd93`.
 
 ### Budget
 Setting `budget_monthly` (EUR). Fortschrittsbalken in der Saldo-Karte (nur aktueller Monat):
-< 70 % grün, < 100 % amber, ≥ 100 % rot + Warnzeile. Bewusst KEINE Kategorie-Budgets
+gebuchte Ausgaben + geplante Posten. < 70 % grün, < 100 % amber, ≥ 100 % rot + Warnzeile. Bewusst KEINE Kategorie-Budgets
 (abgelehnt).
 
 ## 9. Design-System (Dark Edition)
@@ -253,8 +260,8 @@ Setting `budget_monthly` (EUR). Fortschrittsbalken in der Saldo-Karte (nur aktue
 - Manifest: Name „Die Zentrale", `display: standalone`, theme/background `#0c0b09`,
   Icons 192/512/apple-touch, **3 Shortcuts** (Ausgabe erfassen, Termin erfassen, Aufgabe
   erfassen → `?quick=…`).
-- sw.js: einfaches Cache-First für Shell-Assets, **CACHE-Konstante v6** — bei jeder Änderung
-  der Shell (layout/globals/manifest) bumpen, sonst sehen installierte Geräte nichts Neues.
+- sw.js: Network-First mit Cache-Fallback für Shell-Assets, `/api/` bleibt immer live;
+  **CACHE-Konstante v9** — bei jeder Änderung der Shell (layout/globals/manifest) bumpen.
 - App-Badge: `navigator.setAppBadge/clearAppBadge` (Feature-Detect, try/catch) — Anzahl
   offener, heute fälliger Aufgaben.
 - Installations-Hinweis für iOS (Aktionen teilen → Zum Home-Bildschirm) im SettingsSheet.
@@ -272,25 +279,25 @@ beim Nutzer (Datenschutz-Argument). `db/` ist deshalb bewusst **nicht** im Repo.
 ## 12. Entwicklung & QA-Konventionen (so wurde gearbeitet)
 
 ```bash
-bun install                      # deps
-bunx prisma generate             # Client
-bun run dev                      # dev server :3000
-bun prisma/seed.ts               # DB WIPPN (leerer Zustand — vor Übergabe immer!)
+npm install                      # deps (oder bun install)
+npm run db:generate              # Client
+npm run dev                      # dev server :3000
+npm run seed                     # DB WIPPN (leerer Zustand — vor Übergabe immer!)
 curl -X PUT localhost:3000/api/budget -d '{"amount":null}' -H 'Content-Type: application/json'
-bun run lint                     # eslint
-bunx tsc --noEmit                # Typcheck (src/ muss 0 Fehler sein)
+npm run lint                     # eslint
+npm run typecheck                # Typcheck (src/ muss 0 Fehler sein)
 ```
 
 - `.env` (NICHT im Repo): `DATABASE_URL=file:/home/z/my-project/db/custom.db`
 - **QA-Prozess jedes Mal:** agent-browser in 393×852 (iPhone 15 Pro) UND 1280×800 (Desktop);
-  Testdaten über die echte UI anlegen; alle Kernflows durchklicken (Quick-Add inkl. KI,
-  Wisch, Gebucht-Flow, Undo, Suche, Import/Export, Akzente); danach DB wippen — Endzustand
+  Testdaten über die echte UI anlegen; alle Kernflows durchklicken (Quick-Add inkl. lokaler Erkennung,
+  Wisch, Buchen-Flow, Undo, Suche, Import/Export, Akzente); danach DB wippen — Endzustand
   ist IMMER der leere Willkommens-Screen. Konsolen-/Seitenfehler müssen leer sein.
 - **Lint-Falle:** `react-hooks/set-state-in-effect` — bei nötigem setState im Effect das
   `queueMicrotask(() => …)`-Pattern benutzen (so machen es AufgabenView-Swipe-Hinweis und
   SettingsSheet-Akzent-Init).
-- **Versionszeile** im SettingsSheet hochzählen (aktuell „Version 7 · Dark Edition") bei
-  sichtbaren Änderungen; sw.js CACHE bumpen bei Shell-Änderungen.
+- **Versionszeile** im SettingsSheet hochzählen (aktuell „Version 9 · Dark Edition") bei
+  sichtbaren Änderungen; sw.js CACHE (aktuell v9) bei Shell-Änderungen bumpen.
 
 ## 13. Test-Artefakte & bekannte Eigenheiten
 
@@ -304,13 +311,13 @@ bunx tsc --noEmit                # Typcheck (src/ muss 0 Fehler sein)
 
 - Wochenansicht zusätzlich zum Monatskalender (wurde abgelehnt — Monatskalender gewann)
 - Statistik-Vertiefung in Finanzen (Jahresverlauf, Top-Kategorien-Liste)
-- Erweiterte Wiederholungen für Termine (täglich/wöchentlich — aktuell nur jährlich)
+- Tägliche Termine (bewusst nicht angeboten; wöchentlich/monatlich/jährlich sind verfügbar)
 - Daten-Cloud-Sync (bewusst verworfen)
 
 ## 15. Aktueller Zustand / Was als Nächstes
 
-- **v7 ist vollständig umgesetzt und verifiziert**: alle Features aus §3, 5-Farben-Logik,
-  Safe-Areas, KI-Pipeline, Undo, Diktier-Button, Eingabe-Merker, 3 Akzente.
+- **v9 ist vollständig umgesetzt und verifiziert**: alle Features aus §3, 5-Farben-Logik,
+  Safe-Areas, lokale Schnelleingabe, Undo, Diktier-Button, Eingabe-Merker, 3 Akzente.
 - DB ist gewippt (leer), Budget nicht gesetzt — Auslieferungszustand.
 - Offene Punkte: keine bekannten Bugs. Nächste sinnvolle Schritte wären echte Nutzung und
   Feedback-Schleifen statt neuer Features (Prinzip „Subtraktion vor Addition").

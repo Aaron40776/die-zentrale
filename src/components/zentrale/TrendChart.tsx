@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { dayKey, fmtEur } from '@/lib/zentrale/date'
+import { isPlannedEntry } from '@/lib/zentrale/finance'
 import type { TransactionItem } from '@/lib/zentrale/types'
 
 interface MonthBucket {
@@ -25,7 +26,7 @@ export function TrendChart({ transactions }: { transactions: TransactionItem[] }
     return Array.from({ length: 6 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const tx = transactions.filter((t) => dayKey(new Date(t.date)).slice(0, 7) === key)
+      const tx = transactions.filter((t) => dayKey(new Date(t.date)).slice(0, 7) === key && !isPlannedEntry(t))
       return {
         key,
         label: new Intl.DateTimeFormat('de-DE', { month: 'short' }).format(d).replace('.', ''),

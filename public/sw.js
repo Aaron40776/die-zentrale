@@ -1,6 +1,6 @@
 // Minimaler Service Worker für "Die Zentrale":
 // Network-first mit Cache-Fallback (Shell & Assets), /api/ bleibt immer live.
-const CACHE = 'die-zentrale-v6'
+const CACHE = 'die-zentrale-v9'
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (event) => {
@@ -29,8 +29,11 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(req)
       .then((res) => {
-        const copy = res.clone()
-        caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {})
+        // Fehlerseiten nicht in den Offline-Cache schreiben.
+        if (res.ok) {
+          const copy = res.clone()
+          caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {})
+        }
         return res
       })
       .catch(() => caches.match(req).then((hit) => hit || caches.match('/')))

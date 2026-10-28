@@ -10,10 +10,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!body) return NextResponse.json({ error: 'Ungültige Daten.' }, { status: 400 })
 
   const data: Record<string, unknown> = {}
-  if (body.title !== undefined) data.title = String(body.title)
-  if (body.date !== undefined) data.date = new Date(body.date)
-  if (body.place !== undefined) data.place = body.place ? String(body.place) : null
-  if (body.note !== undefined) data.note = body.note ? String(body.note) : null
+  if (body.title !== undefined) {
+    const title = String(body.title).trim().slice(0, 120)
+    if (!title) return NextResponse.json({ error: 'Titel ist erforderlich.' }, { status: 400 })
+    data.title = title
+  }
+  if (body.date !== undefined) {
+    const date = new Date(body.date)
+    if (Number.isNaN(date.getTime())) return NextResponse.json({ error: 'Ungültiges Datum.' }, { status: 400 })
+    data.date = date
+  }
+  if (body.place !== undefined) data.place = body.place ? String(body.place).trim().slice(0, 120) : null
+  if (body.note !== undefined) data.note = body.note ? String(body.note).trim().slice(0, 500) : null
   if (body.priority !== undefined && ['HIGH', 'MEDIUM', 'LOW'].includes(body.priority)) {
     data.priority = body.priority
   }

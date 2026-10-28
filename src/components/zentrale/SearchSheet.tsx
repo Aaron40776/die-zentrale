@@ -5,7 +5,7 @@ import { CalendarDays, ListTodo, Search, StickyNote, Wallet, X } from 'lucide-re
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Input } from '@/components/ui/input'
 import { fmtEur, fmtShortDate, eventDate } from '@/lib/zentrale/date'
-import type { EditTarget, EventItem, NoteItem, TaskItem, TransactionItem } from '@/lib/zentrale/types'
+import { RECURRING_LABELS, type EditTarget, type EventItem, type NoteItem, type TaskItem, type TransactionItem } from '@/lib/zentrale/types'
 
 interface Props {
   open: boolean
@@ -15,6 +15,15 @@ interface Props {
   tasks: TaskItem[]
   transactions: TransactionItem[]
   notes: NoteItem[]
+}
+
+/** Umlaute/Akzente ignorieren, damit „Muller“ auch „Müller“ findet. */
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss')
 }
 
 interface Hit {
@@ -31,10 +40,12 @@ export function SearchSheet({ open, onOpenChange, onPick, events, tasks, transac
   const inputRef = useRef<HTMLInputElement>(null)
 
   const needle = q.trim().toLowerCase()
+  const needleNorm = normalize(needle)
 
   const hits: Hit[] = useMemo(() => {
-    if (needle.length < 2) return []
-    const match = (...parts: (string | null | undefined)[]) => parts.some((p) => p && p.toLowerCase().includes(needle))
+    if (needleNorm.length < 2) return []
+    const match = (...parts: (string | null | undefined)[]) =>
+      parts.some((p) => p && normalize(p).includes(needleNorm))
 
     const evHits: Hit[] = events
       .filter((e) => match(e.title, e.place, e.note))
@@ -43,7 +54,7 @@ export function SearchSheet({ open, onOpenChange, onPick, events, tasks, transac
         key: `ev-${e.id}`,
         kind: 'event' as const,
         label: e.title,
-        sub: `Termin · ${fmtShortDate(eventDate(e).toISOString())}${e.recurring === 'YEARLY' ? ' · jährlich' : ''}`,
+        sub: `Termin · ${fmtShortDate(eventDate(e).toISOString())}${e.recurring !== 'NONE' ? ` · ${RECURRING_LABELS[e.recurring].toLowerCase()}` : ''}`,
         target: { kind: 'event', event: e },
       }))
 
@@ -61,13 +72,17 @@ export function SearchSheet({ open, onOpenChange, onPick, events, tasks, transac
     const txHits: Hit[] = transactions
       .filter((t) => match(t.title, t.category))
       .slice(0, 6)
-      .map((t) => ({
-        key: `tx-${t.id}`,
-        kind: 'transaction' as const,
-        label: t.title,
-        sub: `Buchung · ${t.category} · ${fmtShortDate(t.date)} · ${fmtEur(t.amount)}`,
-        target: { kind: 'transaction', transaction: t },
-      }))
+      .map((t) => {
+        const fixed = t.recurring !== 'NONE'
+        const when = fixed && t.nextDue ? `nächste Fälligkeit ${fmtShortDate(t.nextDue)}` : fmtShortDate(t.date)
+        return {
+          key: `tx-${t.id}`,
+          kind: 'transaction' as const,
+          label: t.title,
+          sub: `${fixed ? 'Fixposten' : 'Buchung'} · ${t.category} · ${when} · ${fmtEur(t.amount)}`,
+          target: { kind: 'transaction', transaction: t },
+        }
+      })
 
     const noteHits: Hit[] = notes
       .filter((n) => match(n.title, n.content))
@@ -81,7 +96,7 @@ export function SearchSheet({ open, onOpenChange, onPick, events, tasks, transac
       }))
 
     return [...evHits, ...taskHits, ...txHits, ...noteHits]
-  }, [needle, events, tasks, transactions, notes])
+  }, [needleNorm, events, tasks, transactions, notes])
 
   const KIND_ICON = { event: CalendarDays, task: ListTodo, transaction: Wallet, note: StickyNote }
 

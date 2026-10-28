@@ -10,7 +10,8 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { dayKey, isoFromInput, toInputDate, toInputTime } from '@/lib/zentrale/date'
-import { CATEGORIES, RECURRING_LABELS, TX_RECURRING, type EventItem, type NoteItem, type ParsedEntry, type Priority, type Recurring, type TaskItem, type TransactionItem, type TxType } from '@/lib/zentrale/types'
+import { parseAmount } from '@/lib/zentrale/money'
+import { CATEGORIES, EVENT_RECURRING, RECURRING_LABELS, TX_RECURRING, type EventItem, type NoteItem, type ParsedEntry, type Priority, type Recurring, type TaskItem, type TransactionItem, type TxType } from '@/lib/zentrale/types'
 import { apiSend } from '@/lib/zentrale/useZentrale'
 import { PrioritySeg } from './bits'
 
@@ -53,21 +54,25 @@ function fmtSuggestAmount(t: TransactionItem): string {
 export function EventForm({
   initial,
   prefill,
+  defaultDate,
   onDone,
 }: {
   initial?: EventItem
   prefill?: Extract<ParsedEntry, { kind: 'event' }>
+  defaultDate?: string
   onDone: () => void
 }) {
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [title, setTitle] = useState(initial?.title ?? prefill?.title ?? '')
-  const [date, setDate] = useState(toInputDate(initial?.date) || prefill?.date || dayKey(new Date()))
+  const [date, setDate] = useState(toInputDate(initial?.date) || prefill?.date || defaultDate || dayKey(new Date()))
   const [time, setTime] = useState(initial ? toInputTime(initial.date) : (prefill?.time ?? ''))
   const [place, setPlace] = useState(initial?.place ?? prefill?.place ?? '')
   const [note, setNote] = useState(initial?.note ?? '')
   const [priority, setPriority] = useState<Priority>(initial?.priority ?? prefill?.priority ?? 'MEDIUM')
-  const [yearly, setYearly] = useState(initial?.recurring === 'YEARLY' || prefill?.yearly === true)
+  const [recurring, setRecurring] = useState<Recurring>(
+    initial?.recurring ?? prefill?.recurring ?? (prefill?.yearly ? 'YEARLY' : 'NONE')
+  )
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -81,7 +86,7 @@ export function EventForm({
       place: place.trim() || null,
       note: note.trim() || null,
       priority,
-      recurring: yearly ? 'YEARLY' : 'NONE',
+      recurring,
     }
     const ok = initial
       ? await apiSend(`/api/events/${initial.id}`, 'PATCH', payload)
@@ -108,13 +113,29 @@ export function EventForm({
           <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={INPUT_CLS} />
         </Field>
       </div>
-      <div className="flex items-center justify-between rounded-xl border border-border bg-card px-3.5 py-3">
-        <div>
-          <p className="text-[13px] font-medium text-foreground">Jährlich wiederholen</p>
-          <p className="text-[11px] text-muted-foreground">Für Geburtstage &amp; Jahrestage – wandert jedes Jahr mit.</p>
-        </div>
-        <Switch checked={yearly} onCheckedChange={setYearly} aria-label="Termin jährlich wiederholen" />
-      </div>
+      <Field
+        label="Wiederholung"
+        hint={
+          recurring === 'YEARLY'
+            ? 'Geburtstage & Jahrestage wandern jedes Jahr automatisch mit.'
+            : recurring === 'NONE'
+              ? 'Einmaliger Termin.'
+              : 'Der Termin erscheint automatisch in jeder Periode im Kalender.'
+        }
+      >
+        <Select value={recurring} onValueChange={(v) => setRecurring(v as Recurring)}>
+          <SelectTrigger className="w-full rounded-xl border-border bg-muted/40 text-base">
+            <SelectValue placeholder="Wiederholung" />
+          </SelectTrigger>
+          <SelectContent>
+            {EVENT_RECURRING.map((r) => (
+              <SelectItem key={r} value={r}>
+                {RECURRING_LABELS[r]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
       <Field label="Ort (optional)">
         <Input value={place} onChange={(e) => setPlace(e.target.value)} placeholder="z. B. Praxis Dr. Weber" className={INPUT_CLS} maxLength={120} />
       </Field>
@@ -132,28 +153,33 @@ export function EventForm({
 export function TaskForm({
   initial,
   prefill,
+  defaultDate,
   onDone,
 }: {
   initial?: TaskItem
   prefill?: Extract<ParsedEntry, { kind: 'task' }>
+  defaultDate?: string
   onDone: () => void
 }) {
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [title, setTitle] = useState(initial?.title ?? prefill?.title ?? '')
-  const [dueDate, setDueDate] = useState(toInputDate(initial?.dueDate) || prefill?.dueDate || '')
+  const [dueDate, setDueDate] = useState(toInputDate(initial?.dueDate) || prefill?.dueDate || defaultDate || '')
   const [priority, setPriority] = useState<Priority>(initial?.priority ?? prefill?.priority ?? 'MEDIUM')
   const [recurring, setRecurring] = useState<Recurring>(initial?.recurring ?? prefill?.recurring ?? 'NONE')
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (!title.trim()) return fail(toast, 'Bitte einen Titel angeben.')
+    const newDue = isoFromInput(dueDate)
     setSaving(true)
     const payload = {
       title: title.trim(),
-      dueDate: isoFromInput(dueDate),
+      dueDate: newDue,
       priority,
       recurring,
+      // Nur Titel/Priorität ändern den Monatsanker nicht (z. B. 31.1. bleibt 31.).
+      ...(initial?.recurring !== 'NONE' && initial?.dueDate === newDue ? { keepAnchor: true } : {}),
     }
     const ok = initial
       ? await apiSend(`/api/tasks/${initial.id}`, 'PATCH', payload)
@@ -178,7 +204,7 @@ export function TaskForm({
       <PrioritySeg value={priority} onChange={setPriority} />
       <Field
         label="Wiederholung"
-        hint={recurring !== 'NONE' ? 'Routine: Beim Abhaken wird die nächste Fälligkeit automatisch angelegt.' : 'Routinen (z. B. wöchentlich) legen beim Abhaken die nächste Fälligkeit automatisch an.'}
+        hint={recurring !== 'NONE' ? 'Routine: Beim Abhaken wird die nächste Fälligkeit automatisch angelegt.' : 'Einmalige Aufgabe – ohne Wiederholung.'}
       >
         <Select value={recurring} onValueChange={(v) => setRecurring(v as Recurring)}>
           <SelectTrigger className="w-full rounded-xl border-border bg-muted/40 text-base">
@@ -223,7 +249,7 @@ export function TransactionForm({
   const [date, setDate] = useState(toInputDate(initial?.date) || prefill?.date || dayKey(new Date()))
   const [recurring, setRecurring] = useState<Recurring>(initial?.recurring ?? prefill?.recurring ?? 'NONE')
 
-  const catOptions = type === 'INCOME' ? (['Einkommen', 'Sonstiges'] as const) : CATEGORIES
+  const catOptions = type === 'INCOME' ? (['Einkommen', 'Sonstiges'] as const) : CATEGORIES.filter((c) => c !== 'Einkommen')
 
   // Eingabe-Merker: zuletzt genutzte Titel (ohne Dubletten, max. 4, nur im Neu-Modus)
   const suggestions = useMemo(() => {
@@ -245,17 +271,19 @@ export function TransactionForm({
     setTitle(s.title)
     setAmount(String(s.amount).replace('.', ','))
     setType(s.type)
-    setCategory(s.category)
-    if (s.recurring !== 'NONE' && TX_RECURRING.includes(s.recurring)) setRecurring(s.recurring)
+    setCategory(s.type === 'INCOME' ? 'Einkommen' : s.category === 'Einkommen' ? 'Sonstiges' : s.category)
+    setRecurring(TX_RECURRING.includes(s.recurring) ? s.recurring : 'NONE')
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (!title.trim()) return fail(toast, 'Bitte einen Titel angeben.')
-    const value = Number(amount.replace(',', '.'))
-    if (!amount || Number.isNaN(value) || value <= 0) return fail(toast, 'Bitte einen Betrag größer 0 angeben.')
+    const value = parseAmount(amount)
+    if (!amount || value === null || value <= 0) return fail(toast, 'Bitte einen Betrag größer 0 angeben.')
+    const iso = isoFromInput(date)
+    if (!iso) return fail(toast, 'Bitte ein gültiges Datum angeben.')
     setSaving(true)
-    const payload = { title: title.trim(), amount: value, type, category, date: isoFromInput(date), recurring }
+    const payload = { title: title.trim(), amount: value, type, category, date: iso, recurring }
     const ok = initial
       ? await apiSend(`/api/transactions/${initial.id}`, 'PATCH', payload)
       : await apiSend('/api/transactions', 'POST', payload)
@@ -344,7 +372,14 @@ export function TransactionForm({
           </SelectContent>
         </Select>
       </Field>
-      <Field label="Wiederholung" hint="Abos & Fixposten erscheinen mit nächster Fälligkeit.">
+      <Field
+        label="Wiederholung"
+        hint={
+          recurring !== 'NONE'
+            ? 'Fixposten: Die erste Rate wird bei heutigem Datum direkt gebucht, danach erscheint die nächste Fälligkeit.'
+            : 'Einmalige Buchung – wird sofort im Saldo berücksichtigt.'
+        }
+      >
         <Select value={recurring} onValueChange={(v) => setRecurring(v as Recurring)}>
           <SelectTrigger className="w-full rounded-xl border-border bg-muted/40 text-base">
             <SelectValue placeholder="Wiederholung" />

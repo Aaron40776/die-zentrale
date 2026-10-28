@@ -9,8 +9,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!body) return NextResponse.json({ error: 'Ungültige Daten.' }, { status: 400 })
 
   const data: Record<string, unknown> = {}
-  if (body.title !== undefined) data.title = String(body.title)
-  if (body.content !== undefined) data.content = String(body.content)
+  if (body.title !== undefined) {
+    const title = String(body.title).trim().slice(0, 120)
+    if (!title) return NextResponse.json({ error: 'Titel ist erforderlich.' }, { status: 400 })
+    data.title = title
+  }
+  if (body.content !== undefined) data.content = String(body.content).slice(0, 4000)
   if (body.pinned !== undefined) data.pinned = Boolean(body.pinned)
 
   try {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { ToastAction } from '@/components/ui/toast'
 import { BottomNav } from '@/components/zentrale/BottomNav'
@@ -11,8 +11,8 @@ import { AufgabenView } from '@/components/zentrale/views/AufgabenView'
 import { FinanzenView } from '@/components/zentrale/views/FinanzenView'
 import { HeuteView } from '@/components/zentrale/views/HeuteView'
 import { TermineView } from '@/components/zentrale/views/TermineView'
-import { addDays, dayDiff, eventDate, isoFromInput, dayKey } from '@/lib/zentrale/date'
-import type { EditTarget, QuickTab, TaskItem, ViewKind } from '@/lib/zentrale/types'
+import { addDays, dayDiff, eventDate, fmtEur, isoFromInput, dayKey } from '@/lib/zentrale/date'
+import type { EditTarget, QuickTab, TaskItem, TransactionItem, ViewKind } from '@/lib/zentrale/types'
 import { apiSend, apiSendJson, useZentrale } from '@/lib/zentrale/useZentrale'
 
 const KIND_LABEL: Record<EditTarget['kind'], string> = {
@@ -28,12 +28,26 @@ export default function Page() {
   const [view, setView] = useState<ViewKind>('heute')
   const [quickOpen, setQuickOpen] = useState(false)
   const [quickTab, setQuickTab] = useState<QuickTab>('event')
+  const [quickDate, setQuickDate] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
+  const [bookingId, setBookingId] = useState<string | null>(null)
+  const bookingRef = useRef(false)
+  const togglingRef = useRef<Set<string>>(new Set())
+  const undoingRef = useRef<Set<string>>(new Set())
+  const restoringRef = useRef<Set<string>>(new Set())
 
   async function toggleTask(t: TaskItem) {
-    const ok = await apiSend(`/api/tasks/${t.id}`, 'PATCH', { done: !t.done })
-    if (ok) await z.refresh()
+    // Doppeltipp darf bei Routinen keinen zweiten Nachfolger erzeugen.
+    if (togglingRef.current.has(t.id)) return
+    togglingRef.current.add(t.id)
+    try {
+      const ok = await apiSend(`/api/tasks/${t.id}`, 'PATCH', { done: !t.done })
+      if (ok) await z.refresh()
+      else toast({ title: 'Aufgabe konnte nicht aktualisiert werden.', variant: 'destructive' })
+    } finally {
+      togglingRef.current.delete(t.id)
+    }
   }
 
   /** Schnellverschiebung: offene Aufgabe auf morgen setzen. */
@@ -41,42 +55,103 @@ export default function Page() {
     const tomorrow = addDays(new Date(), 1)
     const iso = isoFromInput(dayKey(tomorrow))
     if (!iso) return
-    const ok = await apiSend(`/api/tasks/${t.id}`, 'PATCH', { dueDate: iso })
+    // Schnellverschiebung soll den Rhythmus nicht dauerhaft verändern.
+    const ok = await apiSend(`/api/tasks/${t.id}`, 'PATCH', { dueDate: iso, keepAnchor: true })
     if (ok) {
       await z.refresh()
       toast({ title: 'Auf morgen verschoben.', description: t.title })
+    } else {
+      toast({ title: 'Verschieben fehlgeschlagen.', variant: 'destructive' })
+    }
+  }
+
+  /** Fixposten mit einem Tipp einbuchen: echte Buchung heute + Fälligkeit rückt serverseitig weiter. */
+  async function bookFixed(t: TransactionItem) {
+    if (bookingRef.current) return
+    bookingRef.current = true
+    setBookingId(t.id)
+    const result = await apiSendJson<{ booked: TransactionItem; template: TransactionItem }>(
+      `/api/transactions/${t.id}/book`,
+      'POST'
+    )
+    if (result) {
+      const previousDue = t.nextDue
+      toast({
+        title: `${t.title} gebucht.`,
+        description: `${t.type === 'INCOME' ? '+' : '−'}${fmtEur(t.amount)} für heute erfasst · nächste Fälligkeit aktualisiert.`,
+        duration: 8000,
+        action: (
+          <ToastAction
+            altText="Buchung rückgängig machen"
+            onClick={() => void undoBooking(t.id, result.booked.id, previousDue)}
+          >
+            Rückgängig
+          </ToastAction>
+        ),
+      })
+      await z.refresh()
+    } else {
+      toast({ title: 'Buchen fehlgeschlagen.', variant: 'destructive' })
+    }
+    setBookingId(null)
+  }
+
+  /** Falsch gebuchten Fixposten zurücknehmen: Ist-Buchung löschen und Fälligkeit zurücksetzen. */
+  async function undoBooking(templateId: string, bookedId: string, previousDue: string | null) {
+    if (undoingRef.current.has(bookedId)) return
+    undoingRef.current.add(bookedId)
+    try {
+      const removed = await apiSend(`/api/transactions/${bookedId}`, 'DELETE')
+      const reset = await apiSend(`/api/transactions/${templateId}`, 'PATCH', { nextDue: previousDue })
+      if (removed && reset) {
+        toast({ title: 'Buchung rückgängig gemacht.' })
+        await z.refresh()
+      } else {
+        toast({ title: 'Rückgängig fehlgeschlagen.', variant: 'destructive' })
+      }
+    } finally {
+      undoingRef.current.delete(bookedId)
     }
   }
 
   /** Gelöschten Eintrag wiederherstellen (neue ID, alte Inhalte). */
   async function restoreTarget(t: EditTarget) {
-    if (t.kind === 'event') {
-      const e = t.event
-      await apiSend('/api/events', 'POST', { title: e.title, date: e.date, place: e.place, note: e.note, priority: e.priority, recurring: e.recurring })
-    } else if (t.kind === 'task') {
-      const created = await apiSendJson<TaskItem>('/api/tasks', 'POST', {
-        title: t.task.title,
-        dueDate: t.task.dueDate,
-        priority: t.task.priority,
-        recurring: t.task.recurring,
-      })
-      // Erledigt-Zustand mit zurückholen
-      if (created && t.task.done) await apiSend(`/api/tasks/${created.id}`, 'PATCH', { done: true })
-    } else if (t.kind === 'transaction') {
-      const x = t.transaction
-      await apiSend('/api/transactions', 'POST', {
-        title: x.title,
-        amount: x.amount,
-        type: x.type,
-        category: x.category,
-        date: x.date,
-        recurring: x.recurring,
-      })
-    } else {
-      const n = t.note
-      await apiSend('/api/notes', 'POST', { title: n.title, content: n.content, pinned: n.pinned })
+    const key = `${t.kind}:${t.kind === 'event' ? t.event.id : t.kind === 'task' ? t.task.id : t.kind === 'transaction' ? t.transaction.id : t.note.id}`
+    if (restoringRef.current.has(key)) return
+    restoringRef.current.add(key)
+    try {
+      if (t.kind === 'event') {
+        const e = t.event
+        await apiSend('/api/events', 'POST', { title: e.title, date: e.date, place: e.place, note: e.note, priority: e.priority, recurring: e.recurring })
+      } else if (t.kind === 'task') {
+        await apiSendJson<TaskItem>('/api/tasks', 'POST', {
+          title: t.task.title,
+          dueDate: t.task.dueDate,
+          priority: t.task.priority,
+          recurring: t.task.recurring,
+          recurringAnchor: t.task.recurringAnchor,
+          done: t.task.done,
+          completedAt: t.task.completedAt,
+        })
+      } else if (t.kind === 'transaction') {
+        const x = t.transaction
+        await apiSend('/api/transactions', 'POST', {
+          title: x.title,
+          amount: x.amount,
+          type: x.type,
+          category: x.category,
+          date: x.date,
+          recurring: x.recurring,
+          nextDue: x.nextDue,
+        })
+      } else {
+        const n = t.note
+        await apiSend('/api/notes', 'POST', { title: n.title, content: n.content, pinned: n.pinned, updatedAt: n.updatedAt })
+      }
+      await z.refresh()
+    } finally {
+      restoringRef.current.delete(key)
     }
-    await z.refresh()
   }
 
   /** Löschen mit Sicherheitsnetz: Toast mit "Rückgängig" (8 s Zeit zum Umdenken). */
@@ -108,8 +183,9 @@ export default function Page() {
     deleteWithUndo({ kind: 'task', task: t })
   }
 
-  function openQuickAdd(tab: QuickTab) {
+  function openQuickAdd(tab: QuickTab, date?: string | null) {
     setQuickTab(tab)
+    setQuickDate(date ?? null)
     setQuickOpen(true)
   }
 
@@ -117,8 +193,11 @@ export default function Page() {
   const dueCount = useMemo(() => {
     const openTasks = z.tasks.filter((t) => !t.done && t.dueDate && dayDiff(new Date(t.dueDate)) <= 0).length
     const todayEvents = z.events.filter((e) => dayDiff(eventDate(e)) === 0).length
-    return openTasks + todayEvents
-  }, [z.tasks, z.events])
+    const dueFixed = z.transactions.filter(
+      (t) => t.recurring !== 'NONE' && t.nextDue && dayDiff(new Date(t.nextDue)) <= 0
+    ).length
+    return openTasks + todayEvents + dueFixed
+  }, [z.tasks, z.events, z.transactions])
 
   useEffect(() => {
     document.title = dueCount > 0 ? `(${dueCount}) Die Zentrale` : 'Die Zentrale'
@@ -139,6 +218,25 @@ export default function Page() {
     }
   }, [dueCount])
 
+  // Tastatur: ⌘/Ctrl+K oder "/" öffnet die globale Suche (Desktop-Komfort).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null
+      const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+        return
+      }
+      if (!typing && !quickOpen && !editTarget && e.key === '/') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [quickOpen, editTarget])
+
   // Homescreen-Shortcut: /?quick=transaction|task|event|note öffnet Quick-Add mit passendem Reiter
   // (asynchron, damit der Öffnungs-Zustand erst nach dem Hydration-Pass gesetzt wird)
   useEffect(() => {
@@ -157,6 +255,14 @@ export default function Page() {
       {/* Safe-Area-oben: im Standalone-Modus (Home-Bildschirm) bleibt Platz unter Dynamic Island/Statusleiste.
           Unten: Platz fuer die schwebende Glas-Navigation inkl. Abstand. */}
       <main className="mx-auto max-w-md px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(112px+env(safe-area-inset-bottom))]">
+        {z.error && view !== 'heute' && (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-[13px] text-red-300">
+            <span className="min-w-0 flex-1">{z.error}</span>
+            <button type="button" onClick={() => void z.refresh()} className="hit shrink-0 font-semibold underline underline-offset-2">
+              Erneut laden
+            </button>
+          </div>
+        )}
         {view === 'heute' && (
           <HeuteView
             events={z.events}
@@ -171,6 +277,8 @@ export default function Page() {
             onSnoozeTask={snoozeTask}
             onDeleteTask={deleteTask}
             onQuickAdd={openQuickAdd}
+            onBookFixed={bookFixed}
+            bookingId={bookingId}
             onSearch={() => setSearchOpen(true)}
             onRefresh={() => void z.refresh()}
           />
@@ -184,7 +292,8 @@ export default function Page() {
             onToggleTask={toggleTask}
             onSnoozeTask={snoozeTask}
             onDeleteTask={deleteTask}
-            onQuickAdd={() => openQuickAdd('event')}
+            onQuickAdd={(date) => openQuickAdd('event', date)}
+            onSearch={() => setSearchOpen(true)}
           />
         )}
         {view === 'finanzen' && (
@@ -194,6 +303,9 @@ export default function Page() {
             onEdit={setEditTarget}
             onChanged={z.refresh}
             onQuickAdd={() => openQuickAdd('transaction')}
+            onBookFixed={bookFixed}
+            bookingId={bookingId}
+            onSearch={() => setSearchOpen(true)}
           />
         )}
         {view === 'aufgaben' && (
@@ -206,18 +318,26 @@ export default function Page() {
             onSnoozeTask={snoozeTask}
             onDeleteTask={deleteTask}
             onQuickAdd={openQuickAdd}
+            onSearch={() => setSearchOpen(true)}
           />
         )}
       </main>
 
-      <BottomNav view={view} onNavigate={setView} onAdd={() => openQuickAdd('event')} />
+      <BottomNav
+        view={view}
+        onNavigate={setView}
+        onAdd={() =>
+          openQuickAdd(view === 'finanzen' ? 'transaction' : view === 'aufgaben' ? 'task' : 'event')
+        }
+      />
       {/* key sorgt dafuer, dass der Reiter beim Oeffnen uebernommen wird */}
       <QuickAddSheet
-        key={quickTab}
+        key={`${quickTab}-${quickDate ?? ''}`}
         open={quickOpen}
         onOpenChange={setQuickOpen}
         onSaved={z.refresh}
         initialTab={quickTab}
+        initialDate={quickDate}
         transactions={z.transactions}
       />
       <SearchSheet

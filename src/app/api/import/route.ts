@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { EVENT_RECURRING, type Recurring } from '@/lib/zentrale/types'
+import { CATEGORIES, EVENT_RECURRING, type Recurring } from '@/lib/zentrale/types'
 import { computeNextDue } from '../transactions/route'
 
 const PRIORITIES = ['HIGH', 'MEDIUM', 'LOW']
@@ -21,6 +21,7 @@ interface BackupTask {
   dueDate?: unknown
   priority?: unknown
   recurring?: unknown
+  recurringAnchor?: unknown
   done?: unknown
   completedAt?: unknown
 }
@@ -40,6 +41,7 @@ interface BackupNote {
   updatedAt?: unknown
 }
 interface BackupData {
+  budget?: unknown
   events?: BackupEvent[]
   tasks?: BackupTask[]
   transactions?: BackupTx[]
@@ -77,6 +79,8 @@ export async function POST(req: NextRequest) {
   try {
     await db.$transaction(async (tx) => {
       if (replace) {
+        // Budget gehört zum Backup: bei "ersetzen" wird es mit zurückgesetzt.
+        await tx.setting.deleteMany({ where: { key: 'budget_monthly' } })
         await tx.event.deleteMany()
         await tx.task.deleteMany()
         await tx.transaction.deleteMany()
@@ -111,6 +115,12 @@ export async function POST(req: NextRequest) {
             dueDate: due,
             priority: PRIORITIES.includes(t.priority as string) ? (t.priority as string) : 'MEDIUM',
             recurring: TASK_RECURRING.includes(t.recurring as string) ? (t.recurring as string) : 'NONE',
+            recurringAnchor:
+              typeof t.recurringAnchor === 'number' && t.recurringAnchor >= 1 && t.recurringAnchor <= 31
+                ? t.recurringAnchor
+                : due
+                  ? due.getDate()
+                  : null,
             done,
             completedAt: completed,
           },
@@ -129,15 +139,24 @@ export async function POST(req: NextRequest) {
         await tx.transaction.create({
           data: {
             title: t.title.trim().slice(0, 120),
-            amount,
+            amount: Math.round(amount * 100) / 100,
             type: t.type as string,
-            category: typeof t.category === 'string' && t.category.trim() ? t.category.trim().slice(0, 40) : 'Sonstiges',
+            category: CATEGORIES.includes(t.category as (typeof CATEGORIES)[number]) ? (t.category as string) : 'Sonstiges',
             date,
             recurring,
-            nextDue: storedNext ?? computeNextDue(date, recurring),
+            nextDue: storedNext ?? computeNextDue(date, recurring, date.getDate()),
           },
         })
         counts.transactions += 1
+      }
+
+      const budget = Number(data.budget)
+      if (Number.isFinite(budget) && budget > 0) {
+        await tx.setting.upsert({
+          where: { key: 'budget_monthly' },
+          create: { key: 'budget_monthly', value: String(Math.round(budget * 100) / 100) },
+          update: { value: String(Math.round(budget * 100) / 100) },
+        })
       }
 
       for (const n of notes) {
@@ -153,7 +172,11 @@ export async function POST(req: NextRequest) {
         })
         counts.notes += 1
       }
-    })
+
+      // Bei "ersetzen" darf eine unbrauchbare Datei nicht die aktuellen Daten leeren.
+      const imported = counts.events + counts.tasks + counts.transactions + counts.notes
+      if (replace && imported === 0) throw new Error('Keine verwertbaren Einträge.')
+    }, { timeout: 30000, maxWait: 5000 })
   } catch {
     return NextResponse.json({ error: 'Import fehlgeschlagen – Daten unverändert gelassen.' }, { status: 500 })
   }

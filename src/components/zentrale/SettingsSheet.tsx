@@ -27,6 +27,11 @@ const ACCENTS = [
 
 type AccentId = (typeof ACCENTS)[number]['id']
 
+/** Cookie spiegelt die Akzentwahl für den servergerenderten Start (kein Farbblitz). */
+function persistAccent(id: AccentId) {
+  document.cookie = `zentrale-accent=${id}; Path=/; Max-Age=31536000; SameSite=Lax`
+}
+
 function Row({
   icon: Icon,
   title,
@@ -55,23 +60,35 @@ function Row({
   )
   const cls =
     'flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition-all duration-150 hover:border-stone-600 active:scale-[0.99]'
-  return href ? (
-    <a href={href} download={download} onClick={onClick} className={cls}>
-      {inner}
-    </a>
-  ) : (
+  if (href) {
+    return (
+      <a href={href} download={download} onClick={onClick} className={cls}>
+        {inner}
+      </a>
+    )
+  }
+  if (!onClick) return <div className={cls}>{inner}</div>
+  return (
     <button type="button" onClick={onClick} className={cls}>
       {inner}
     </button>
   )
 }
 
-/** Erzeugt den Export-Handler (JSON-Download aller vier Bereiche). */
+/** Erzeugt den Export-Handler (JSON-Download aller vier Bereiche inkl. Budget). */
 function exportBackup(events: EventItem[], tasks: TaskItem[], transactions: TransactionItem[], notes: NoteItem[]) {
-  return () => {
+  return async () => {
+    let budget: number | null = null
+    try {
+      const res = await fetch('/api/budget')
+      if (res.ok) budget = (await res.json()).amount ?? null
+    } catch {
+      /* ohne Budget exportieren */
+    }
     const payload = {
       app: 'Die Zentrale',
       exportedAt: new Date().toISOString(),
+      budget,
       events,
       tasks,
       transactions,
@@ -82,8 +99,10 @@ function exportBackup(events: EventItem[], tasks: TaskItem[], transactions: Tran
     const a = document.createElement('a')
     a.href = url
     a.download = `zentrale-backup-${dayKey(new Date())}.json`
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 }
 
@@ -111,6 +130,7 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
     else document.documentElement.setAttribute('data-accent', id)
     try {
       localStorage.setItem('zentrale-accent', id)
+      persistAccent(id)
     } catch {
       /* Speichern nicht möglich -> Auswahl gilt nur für diese Sitzung */
     }
@@ -201,7 +221,7 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-foreground">Die Zentrale</span>
-                    <span className="block text-xs text-muted-foreground">Version 7 · Dark Edition · nur auf diesem Gerät</span>
+                    <span className="block text-xs text-muted-foreground">Version 9 · Dark Edition · nur auf diesem Gerät</span>
                   </span>
                 </div>
               </div>

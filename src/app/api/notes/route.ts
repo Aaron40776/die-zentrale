@@ -11,11 +11,15 @@ export async function POST(req: NextRequest) {
   if (!body || !body.title) {
     return NextResponse.json({ error: 'Titel ist erforderlich.' }, { status: 400 })
   }
+  const title = String(body.title).trim().slice(0, 120)
+  if (!title) return NextResponse.json({ error: 'Titel ist erforderlich.' }, { status: 400 })
+  const restoredUpdatedAt = body.updatedAt ? new Date(body.updatedAt) : null
   const note = await db.note.create({
     data: {
-      title: String(body.title),
-      content: body.content ? String(body.content) : '',
+      title,
+      content: body.content ? String(body.content).slice(0, 4000) : '',
       pinned: Boolean(body.pinned),
+      ...(restoredUpdatedAt && !Number.isNaN(restoredUpdatedAt.getTime()) ? { updatedAt: restoredUpdatedAt } : {}),
     },
   })
   return NextResponse.json(note, { status: 201 })

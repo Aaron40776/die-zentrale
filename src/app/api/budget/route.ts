@@ -21,12 +21,17 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const body = (await req.json().catch(() => null)) as { amount?: unknown } | null
-    const amount = typeof body?.amount === 'number' && Number.isFinite(body.amount) ? Math.round(body.amount * 100) / 100 : null
-
-    if (amount === null) {
+    if (!body || body.amount === undefined) {
+      return NextResponse.json({ error: 'Betrag fehlt.' }, { status: 400 })
+    }
+    if (body.amount === null) {
       await db.setting.deleteMany({ where: { key: KEY } })
       return NextResponse.json({ ok: true, amount: null })
     }
+    if (typeof body.amount !== 'number' || !Number.isFinite(body.amount)) {
+      return NextResponse.json({ error: 'Ungültiger Betrag.' }, { status: 400 })
+    }
+    const amount = Math.round(body.amount * 100) / 100
     if (amount <= 0) return NextResponse.json({ error: 'Budget muss größer 0 sein.' }, { status: 400 })
 
     await db.setting.upsert({ where: { key: KEY }, create: { key: KEY, value: String(amount) }, update: { value: String(amount) } })

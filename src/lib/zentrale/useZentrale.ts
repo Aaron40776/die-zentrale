@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { EventItem, NoteItem, TaskItem, TransactionItem } from './types'
 
 export interface ZentraleData {
@@ -17,8 +17,10 @@ export function useZentrale() {
   const [data, setData] = useState<ZentraleData>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const requestRef = useRef(0)
 
   const refresh = useCallback(async () => {
+    const requestId = ++requestRef.current
     try {
       const [events, tasks, transactions, notes] = await Promise.all(
         (['/api/events', '/api/tasks', '/api/transactions', '/api/notes'] as const).map(async (url) => {
@@ -27,17 +29,20 @@ export function useZentrale() {
           return res.json()
         })
       )
+      if (requestId !== requestRef.current) return
       setData({ events, tasks, transactions, notes })
       setError(null)
     } catch {
+      if (requestId !== requestRef.current) return
       setError('Daten konnten nicht geladen werden. Bitte Seite neu laden.')
     } finally {
-      setLoading(false)
+      if (requestId === requestRef.current) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    void refresh()
+    // asynchron anstoßen, damit der erste Render nicht durch setState im Effect kaskadiert
+    queueMicrotask(() => void refresh())
   }, [refresh])
 
   return { ...data, loading, error, refresh }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Check, ListTodo, MoveHorizontal, Pin, StickyNote, X } from 'lucide-react'
+import { Check, ListTodo, MoveHorizontal, Pin, Search, StickyNote, X } from 'lucide-react'
 import { EmptyHint, SectionTitle, Segmented, SkeletonRow } from '@/components/zentrale/bits'
 import { TaskRow } from '@/components/zentrale/rows'
 import { dayDiff, fmtShortDate } from '@/lib/zentrale/date'
@@ -18,12 +18,13 @@ interface Props {
   onDeleteTask?: (t: TaskItem) => void
   /** Öffnet die Schnellerfassung mit passendem Reiter (für Aktionen im leeren Zustand). */
   onQuickAdd?: (tab: QuickTab) => void
+  onSearch?: () => void
 }
 
 const PRIORITY_ORDER = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const
 
 /** Aufgaben & Notizen: Erledigt-Mechanik + angeheftete Notizen oben. */
-export function AufgabenView({ tasks, notes, loading, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd }: Props) {
+export function AufgabenView({ tasks, notes, loading, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd, onSearch }: Props) {
   const [tab, setTab] = useState<'aufgaben' | 'notizen'>('aufgaben')
   const [showDone, setShowDone] = useState(false)
   // Wisch-Geste einmalig zeigen, bis sie weggeklickt wird (pro Gerät gemerkt)
@@ -73,9 +74,16 @@ export function AufgabenView({ tasks, notes, loading, onEdit, onToggleTask, onSn
 
   return (
     <div>
-      <header className="mb-4">
-        <h1 className="text-xl font-bold tracking-tight text-foreground">Aufgaben &amp; Notizen</h1>
-        <p className="text-xs text-muted-foreground">Abhaken, planen und Wichtiges festhalten.</p>
+      <header className="mb-4 flex items-center gap-2.5">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Aufgaben &amp; Notizen</h1>
+          <p className="text-xs text-muted-foreground">Abhaken, planen und Wichtiges festhalten.</p>
+        </div>
+        {onSearch && (
+          <button type="button" onClick={onSearch} aria-label="Suchen" className="hit flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-stone-600 hover:text-foreground">
+            <Search className="h-4.5 w-4.5" aria-hidden />
+          </button>
+        )}
       </header>
 
       {loading ? (
@@ -122,8 +130,12 @@ export function AufgabenView({ tasks, notes, loading, onEdit, onToggleTask, onSn
               {open.length === 0 ? (
                 <EmptyHint
                   icon={Check}
-                  title="Alles erledigt!"
-                  hint="Erfasse deine nächste Aufgabe – mit Frist, damit sie rot blinkt, wenn es drängt."
+                  title={tasks.length === 0 ? 'Noch keine Aufgaben' : 'Alles erledigt!'}
+                  hint={
+                    tasks.length === 0
+                      ? 'Erfasse deine erste Aufgabe – mit Frist erscheint sie rechtzeitig rot.'
+                      : 'Erfasse deine nächste Aufgabe – mit Frist, damit sie rot blinkt, wenn es drängt.'
+                  }
                   action={onQuickAdd ? { label: 'Aufgabe erfassen', onClick: () => onQuickAdd('task') } : undefined}
                 />
               ) : (
@@ -181,7 +193,17 @@ export function AufgabenView({ tasks, notes, loading, onEdit, onToggleTask, onSn
             </div>
           ) : (
             <div>
-              <SectionTitle>Notizen ({notes.length})</SectionTitle>
+              <SectionTitle
+                right={
+                  onQuickAdd ? (
+                    <button type="button" onClick={() => onQuickAdd('note')} className="hit py-1 text-xs font-semibold text-brand hover:underline">
+                      + Notiz
+                    </button>
+                  ) : undefined
+                }
+              >
+                Notizen ({notes.length})
+              </SectionTitle>
               {sortedNotes.length === 0 ? (
                 <EmptyHint
                   icon={StickyNote}
@@ -201,9 +223,9 @@ export function AufgabenView({ tasks, notes, loading, onEdit, onToggleTask, onSn
                         n.pinned ? 'border-amber-500/30' : 'border-border'
                       )}
                     >
-                      <span className="flex items-center gap-1.5">
+                      <span className="flex min-w-0 items-center gap-1.5">
                         {n.pinned && <Pin className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label="Angeheftet" />}
-                        <span className="truncate text-sm font-semibold text-foreground">{n.title}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{n.title}</span>
                       </span>
                       {n.content && (
                         <span className="mt-1 line-clamp-4 block whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
