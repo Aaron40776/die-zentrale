@@ -1,6 +1,6 @@
 // Minimaler Service Worker für "Die Zentrale":
 // Network-first mit Cache-Fallback (Shell & Assets) – die App hat keine API.
-const CACHE = 'die-zentrale-v19'
+const CACHE = 'die-zentrale-v20'
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (event) => {

@@ -16,8 +16,8 @@ und alles andere ist maximal zwei Tipps entfernt.
 
 ## Features
 
-- **Heute** — Hero-Karte mit Tagesbegrüßung, Fortschrittsring, Chips, Überfällig-Sektion,
-  Finanz-Snapshot
+- **Heute** — Hero-Karte mit Tagesbegrüßung, Fortschrittsring, Chips, Wochenpuls
+  (sieben Tage mit Anzahl, direkt zum Termin erfassen), Überfällig-Sektion, Finanz-Snapshot
 - **Termine** — Monatskalender mit Farbpunkten, Tagesfilter, Wiederholungen
   (wöchentlich/monatlich/jährlich inkl. Geburtstage mit Countdown)
 - **Finanzen** — Saldo, Monatsbudget mit Ampel, Monatsend-Prognose, interaktive
@@ -97,5 +97,5 @@ Das hat eine wichtige Konsequenz:
 
 ## Projekt-Status
 
-**v19 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+**v20 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
 Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).
