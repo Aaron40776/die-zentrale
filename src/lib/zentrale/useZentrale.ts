@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { loadAllData, localRequest } from './localdb'
+import { getBudget, loadAllData, localRequest } from './localdb'
+import { writeRecoverySnapshot } from './recovery'
 import type { EventItem, NoteItem, TaskItem, TransactionItem } from './types'
 
 export interface ZentraleData {
@@ -27,6 +28,9 @@ export function useZentrale() {
       if (requestId !== requestRef.current) return
       setData(next)
       setError(null)
+      // Automatische lokale Kopie, damit ein Datenbank-Reset rekonstruierbar bleibt.
+      const budget = await getBudget().catch(() => null)
+      writeRecoverySnapshot(next, budget)
     } catch {
       if (requestId !== requestRef.current) return
       setError('Daten konnten nicht geladen werden. Bitte die App neu öffnen.')
@@ -39,6 +43,19 @@ export function useZentrale() {
     // asynchron anstoßen, damit der erste Render nicht durch setState im Effect kaskadiert
     queueMicrotask(() => void refresh())
   }, [refresh])
+
+  useEffect(() => {
+    // Persistenz erst nach einer echten Geste anfragen; iOS/Chrome entscheiden dann besser.
+    const ask = () => {
+      try {
+        void navigator.storage?.persist?.()
+      } catch {
+        /* optional */
+      }
+    }
+    window.addEventListener('pointerdown', ask, { once: true, passive: true })
+    return () => window.removeEventListener('pointerdown', ask)
+  }, [])
 
   return { ...data, loading, error, refresh }
 }

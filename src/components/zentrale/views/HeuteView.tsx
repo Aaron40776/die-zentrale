@@ -8,6 +8,7 @@ import { EventRow, TaskRow } from '@/components/zentrale/rows'
 import { SettingsSheet } from '@/components/zentrale/SettingsSheet'
 import { addDays, dayDiff, dayKey, eventOccurrences, fmtEur, fmtLongDate, startOfDay } from '@/lib/zentrale/date'
 import { forecastLabel, forecastMonthEnd, isPlannedEntry } from '@/lib/zentrale/finance'
+import { recoveryCount, useRecoverySnapshot } from '@/lib/zentrale/recovery'
 import { useLastBackupAt } from '@/lib/zentrale/useBackupStatus'
 import type { EditTarget, EventItem, NoteItem, QuickTab, TaskItem, TransactionItem } from '@/lib/zentrale/types'
 import { cn } from '@/lib/utils'
@@ -30,6 +31,7 @@ interface Props {
   bookingId?: string | null
   onSearch: () => void
   onRefresh: () => void
+  onRestoreRecovery?: () => void
 }
 
 function isToday(iso: string | null): boolean {
@@ -88,10 +90,11 @@ function ProgressRing({ pct, label }: { pct: number; label: string }) {
 }
 
 /** Heute-Fokus: die 5-Sekunden-Übersicht – Hero → Rot → Heute → 7 Tage → Geld → Notizen. */
-export function HeuteView({ events, tasks, transactions, notes, loading, error, onNavigate, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd, onBookFixed, bookingId = null, onSearch, onRefresh }: Props) {
+export function HeuteView({ events, tasks, transactions, notes, loading, error, onNavigate, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd, onBookFixed, bookingId = null, onSearch, onRefresh, onRestoreRecovery }: Props) {
   const today = new Date()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const lastBackupAt = useLastBackupAt()
+  const recovery = useRecoverySnapshot()
   const showInstallHint = useSyncExternalStore(installHintStore.subscribe, installHintStore.get, () => false)
 
   const overdueTasks = tasks
@@ -213,6 +216,27 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
           </button>
         </div>
       )}
+
+          {!loading && isCompletelyEmpty && recovery && onRestoreRecovery && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-brand/30 bg-brand/10 p-3.5">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold text-foreground">Lokale Sicherung gefunden</p>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+                  {recoveryCount(recovery)} {recoveryCount(recovery) === 1 ? 'Eintrag' : 'Einträge'} vom{' '}
+                  {new Date(recovery.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}. Die
+                  Hauptdatenbank ist leer – jetzt wiederherstellen?
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onRestoreRecovery}
+                className="hit shrink-0 rounded-full bg-brand/20 px-3 py-1.5 text-[11px] font-semibold text-brand transition-colors hover:bg-brand/30"
+              >
+                Wiederherstellen
+              </button>
+            </div>
+          )}
 
       {loading ? (
         <div className="space-y-3">
