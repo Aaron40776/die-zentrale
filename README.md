@@ -34,6 +34,8 @@ und alles andere ist maximal zwei Tipps entfernt.
   3 Akzentfarben (Gold/Kupfer/Salbei)
 - **Responsive** — 320-px-Handys bis Desktop, inklusive Safe-Areas für Dynamic Island,
   Notch und Home-Indicator
+- **Lebendige Bewegung** — gleitende Navigation, weiche Bereichswechsel, animierte
+  Geldbeträge; respektiert `prefers-reduced-motion`
 
 ## Tech-Stack
 
@@ -85,5 +87,5 @@ Das hat eine wichtige Konsequenz:
 
 ## Projekt-Status
 
-**v12 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+**v13 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
 Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).

@@ -263,64 +263,66 @@ export default function Page() {
             </button>
           </div>
         )}
-        {view === 'heute' && (
-          <HeuteView
-            events={z.events}
-            tasks={z.tasks}
-            transactions={z.transactions}
-            notes={z.notes}
-            loading={z.loading}
-            error={z.error}
-            onNavigate={setView}
-            onEdit={setEditTarget}
-            onToggleTask={toggleTask}
-            onSnoozeTask={snoozeTask}
-            onDeleteTask={deleteTask}
-            onQuickAdd={openQuickAdd}
-            onBookFixed={bookFixed}
-            bookingId={bookingId}
-            onSearch={() => setSearchOpen(true)}
-            onRefresh={() => void z.refresh()}
-          />
-        )}
-        {view === 'termine' && (
-          <TermineView
-            events={z.events}
-            tasks={z.tasks}
-            loading={z.loading}
-            onEdit={setEditTarget}
-            onToggleTask={toggleTask}
-            onSnoozeTask={snoozeTask}
-            onDeleteTask={deleteTask}
-            onQuickAdd={(date) => openQuickAdd('event', date)}
-            onSearch={() => setSearchOpen(true)}
-          />
-        )}
-        {view === 'finanzen' && (
-          <FinanzenView
-            transactions={z.transactions}
-            loading={z.loading}
-            onEdit={setEditTarget}
-            onChanged={z.refresh}
-            onQuickAdd={() => openQuickAdd('transaction')}
-            onBookFixed={bookFixed}
-            bookingId={bookingId}
-            onSearch={() => setSearchOpen(true)}
-          />
-        )}
-        {view === 'aufgaben' && (
-          <AufgabenView
-            tasks={z.tasks}
-            notes={z.notes}
-            loading={z.loading}
-            onEdit={setEditTarget}
-            onToggleTask={toggleTask}
-            onSnoozeTask={snoozeTask}
-            onDeleteTask={deleteTask}
-            onQuickAdd={openQuickAdd}
-            onSearch={() => setSearchOpen(true)}
-          />
-        )}
+        <div key={view} className="animate-view">
+          {view === 'heute' && (
+            <HeuteView
+              events={z.events}
+              tasks={z.tasks}
+              transactions={z.transactions}
+              notes={z.notes}
+              loading={z.loading}
+              error={z.error}
+              onNavigate={setView}
+              onEdit={setEditTarget}
+              onToggleTask={toggleTask}
+              onSnoozeTask={snoozeTask}
+              onDeleteTask={deleteTask}
+              onQuickAdd={openQuickAdd}
+              onBookFixed={bookFixed}
+              bookingId={bookingId}
+              onSearch={() => setSearchOpen(true)}
+              onRefresh={() => void z.refresh()}
+            />
+          )}
+          {view === 'termine' && (
+            <TermineView
+              events={z.events}
+              tasks={z.tasks}
+              loading={z.loading}
+              onEdit={setEditTarget}
+              onToggleTask={toggleTask}
+              onSnoozeTask={snoozeTask}
+              onDeleteTask={deleteTask}
+              onQuickAdd={(date) => openQuickAdd('event', date)}
+              onSearch={() => setSearchOpen(true)}
+            />
+          )}
+          {view === 'finanzen' && (
+            <FinanzenView
+              transactions={z.transactions}
+              loading={z.loading}
+              onEdit={setEditTarget}
+              onChanged={z.refresh}
+              onQuickAdd={() => openQuickAdd('transaction')}
+              onBookFixed={bookFixed}
+              bookingId={bookingId}
+              onSearch={() => setSearchOpen(true)}
+            />
+          )}
+          {view === 'aufgaben' && (
+            <AufgabenView
+              tasks={z.tasks}
+              notes={z.notes}
+              loading={z.loading}
+              onEdit={setEditTarget}
+              onToggleTask={toggleTask}
+              onSnoozeTask={snoozeTask}
+              onDeleteTask={deleteTask}
+              onQuickAdd={openQuickAdd}
+              onSearch={() => setSearchOpen(true)}
+            />
+          )}
+          </div>
       </main>
 
       <BottomNav
