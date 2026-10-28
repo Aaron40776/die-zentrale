@@ -1,6 +1,6 @@
 # Die Zentrale — Projekt-Kontext (KI-Handoff)
 
-> **Stand:** v18 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
+> **Stand:** v19 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
 > Es gibt keinen Server, keine API-Routen, kein Prisma/SQLite und keine Cloud.
 
 ## 1. Was ist die App?
@@ -61,7 +61,7 @@ src/components/zentrale/
   ParsedPreview.tsx       prüfbare Chips für die lokale Schnelleingabe
   ImportSheet.tsx         JSON-Backup importieren
   MonthCalendar.tsx       Monatsraster
-  MoneyFlow.tsx           Monatskugel mit Kategorie-Blasen + Filter
+  MoneyFlow.tsx           Monatskugel + proportionale Kategoriezeilen
   recovery.ts             automatische lokale Sicherung + Speicherstatus
   TrendChart.tsx          6-Monats-Verlauf
   rows.tsx                Zeilen + Wischgesten
@@ -79,7 +79,7 @@ src/lib/zentrale/
 
 public/
   manifest.webmanifest    PWA-Manifest + Shortcuts
-  sw.js                   Service Worker (CACHE v18)
+  sw.js                   Service Worker (CACHE v19)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 
@@ -141,14 +141,17 @@ Formular bleiben danach weiterhin möglich.
 ### Geldfluss
 
 `MoneyFlow` fasst die gebuchten Buchungen des gewählten Monats je Kategorie
-zusammen. Die Gesamtsumme steht in einer großen Monatskugel, die Kategorien
-liegen gleichmäßig verteilt als kleinere Blasen darin; der Ring zeigt die
-Anteile. Ein Umschalter wechselt zwischen Einnahmen und Ausgaben. Ein Tipp auf
-Blase oder Legende setzt den Kategoriefilter, scrollt zu den Buchungen und lässt
-sich dort wieder lösen. Geplante zukünftige Einmal-Buchungen zählen wie in den
-Summen erst nach dem Buchen.
-- `quickparse.ts` erkennt deutsche Beträge, Einnahmen, relative Daten, Wochentage,
-  Wiederholungen und Kategorien — vollständig offline.
+zusammen. Die große Summenkugel ist nur der Anker: Darunter steht eine klar
+lesbare Rangliste mit Kategoriename, Betrag, Buchungszahl und Anteil. Jede Zeile
+ist ein proportional gefüllter Blasenbalken; der Ring und die Farbpunkte ordnen
+die Kategorien der Kugel zu. Ein Umschalter wechselt zwischen Einnahmen und
+Ausgaben. Ein Tipp auf eine Zeile setzt den Kategoriefilter, scrollt zu den
+Buchungen und lässt sich dort wieder lösen. Geplante zukünftige Einmal-Buchungen
+zählen wie in den Summen erst nach dem Buchen.
+- `quickparse.ts` erkennt deutsche Beträge, Einnahmen (u. a. Gewinn, Gehalt,
+  Einnahmen, Einkommen, Verkauf, Rente, +500), relative Daten, Wochentage,
+  Wiederholungen und Kategorien — vollständig offline. Ein explizites
+  `Einnahme:`/`Ausgabe:`-Präfix gewinnt immer.
 - Es gibt keinen KI-Fallback und keinen Server mehr. Wenn die lokale Erkennung scheitert,
   bleibt das Formular leer und der Nutzer füllt es direkt aus.
 
@@ -175,8 +178,8 @@ npx tsc --noEmit
 npm run build
 ```
 
-Danach die vier Views, Quick-Add inklusive Vorschau-Chips, Geldfluss-Blasen inkl.
-Kategoriefilter und Sprung zu den Buchungen, Abhaken (inkl. Nachfolger und Routine-Toast),
+Danach die vier Views, Quick-Add inklusive Vorschau-Chips, Monatskugel inkl.
+Kategoriezeilen und Filter und Sprung zu den Buchungen, Abhaken (inkl. Nachfolger und Routine-Toast),
 Fixposten buchen/rückgängig, Budget, Suche, Backup-Export/-Import und die Backup-Erinnerung
 im Browser prüfen.
 Responsive mindestens bei 320×568, 393×852, 430×932, 768×1024, 844×390 und

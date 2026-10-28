@@ -16,7 +16,13 @@ const TASK_WORDS = /(?<!\S)(kaufen|einkaufen|erledigen|zahlen|bezahlen|anrufen|t
 
 const EVENT_WORDS = /(?<!\S)(termin|treffen|meeting|geburtstag|jahrestag|feier|party|konzert|kino|restaurant|arzt|ärztin|zahnarzt|friseur|interview|workshop|vorlesung|stammtisch|spiel|elternabend|hochzeit|beerdigung|begräbnis|flug|zugfahrt|reise|urlaub|theater|ausstellung)\b/i
 
-const INCOME_WORDS = /(?<!\S)(gehalt|lohn|(?:rück)?erstattung|rückzahlung|gutschrift|einnahme|verkauft|verkauf|bekomme|bekommen|bonus|zinsen|dividende|honorar|erhalten)\b/i
+const INCOME_TERMS =
+  'gehalt|lohn|löhne|einkommen|einkünfte|einnahme(?:n)?|gewinn(?:e)?|erlös(?:e)?|umsatz|honorar|bonus|prämie(?:n)?|zinsen|dividende(?:n)?|mieteinnahme(?:n)?|(?:rück)?erstattung|rückzahlung|gutschrift|verkauf(?:t|en)?|bekomme|bekommen|erhalte|erhalten|verdient|verdiene|taschengeld|unterhalt|rente|pension|kindergeld|arbeitslosengeld|hartz|krankengeld|mutterschaftsgeld|waisenrente|bafög|stipendium|preisgeld|förderung|gratifikation|provision'
+const INCOME_WORDS = new RegExp(`(?<!\\S)(?:${INCOME_TERMS})\\b`, 'i')
+const INCOME_LEAD = new RegExp(
+  `(?:^|\\s)\\+?(\\d{1,3}(?:\\.\\d{3})+|\\d{1,4})(?:,\\d{1,2})?\\s*(?:€|eur|euro)?\\s+(?=(?:${INCOME_TERMS})\\b)`,
+  'i'
+)
 
 const CATEGORY_RULES: [RegExp, string][] = [
   [/miete|wohnung|nebenkosten|strom|gas|heizung|internet|wlan|haushalt|möbel|stadtwerke|rechnung\b/i, 'Wohnen'],
@@ -25,7 +31,7 @@ const CATEGORY_RULES: [RegExp, string][] = [
   [/tanken|tankstelle|benzin|diesel|bvg|bahn|zug\b|ticket|parken|auto|fahrrad|taxi|uber|öpnv|bus\b|reparatur/i, 'Mobilität'],
   [/arzt|ärztin|apotheke|zahnarzt|medikament|krankenhaus|therapie|physio|gesundheit|brille/i, 'Gesundheit'],
   [/kino|restaurant|essen gehen|fitness|sport|verein|konzert|freizeit|hobby|urlaub|hotel|bar\b|café|cafe|bistro|museum/i, 'Freizeit'],
-  [/gehalt|lohn|erstattung|rückzahlung|gutschrift|einnahme|verkauft|bonus|zinsen|dividende|honorar/i, 'Einkommen'],
+  [/gehalt|lohn|löhne|einkommen|einkünfte|einnahme|gewinn|erlös|umsatz|honorar|bonus|prämie|zinsen|dividende|mieteinnahme|erstattung|rückzahlung|gutschrift|verkauft|verkauf|taschengeld|unterhalt|rente|pension|kindergeld|arbeitslosengeld|hartz|krankengeld|mutterschaftsgeld|waisenrente|bafög|stipendium|preisgeld|förderung|gratifikation|provision/i, 'Einkommen'],
 ]
 
 const HOUR_WORDS: Record<string, number> = {
@@ -150,7 +156,7 @@ function stripDate(text: string, now: Date): { date: Date | null; rest: string }
   return { date: null, rest: text }
 }
 
-const MONEY_CONTEXT = /(?<!\S)(miete|abo|abonnement|rechnung|gehalt|lohn|einkauf|einkaufen|kaffee|essen|mittagessen|abendessen|frühstück|tanken|getankt|benzin|diesel|versicherung|strom|gas|internet|handy|netflix|spotify|preis|kosten|bezahlt|kostet|ausgabe|einnahme|überweis\w*|brot|milch|käse|obst|gemüse|fleisch|wurst|eier|mehl|zucker|tee|wasser|saft|bier|wein|snack|süßigkeiten|drogerie|baumarkt|geschenk|blumen|kleidung|schuhe|fitness|yoga|friseur|apotheke|reparatur|lieferando|döner|pizza|imbiss|bäckerei|metzgerei|parken|kita|kindergarten|schule|verein|mitgliedschaft|spende)\b/i
+const MONEY_CONTEXT = /(?<!\S)(miete|abo|abonnement|rechnung|gehalt|lohn|einkauf|einkaufen|kaffee|essen|mittagessen|abendessen|frühstück|tanken|getankt|benzin|diesel|versicherung|strom|gas|internet|handy|netflix|spotify|preis|kosten|bezahlt|kostet|ausgabe|einnahme|überweis\w*|brot|milch|käse|obst|gemüse|fleisch|wurst|eier|mehl|zucker|tee|wasser|saft|bier|wein|snack|süßigkeiten|drogerie|baumarkt|geschenk|blumen|kleidung|schuhe|fitness|friseur|apotheke|reparatur|lieferando|döner|pizza|imbiss|bäckerei|metzgerei|parken|kita|kindergarten|schule|verein|mitgliedschaft|spende)\b/i
 const PAYEE_HINTS = /(?<!\S)(bvg|bahn|ticket|tankstelle|supermarkt|rewe|edeka|aldi|lidl|dm|rossmann|apotheke|friseur|restaurant|café|cafe|bistro|stadtwerke)\b/i
 
 /** "1.234,56" / "1.234" / "12,99" deutsch lesen – ohne aus 1.234 fälschlich 1,234 zu machen. */
@@ -162,6 +168,12 @@ function parseGermanAmount(raw: string): number {
 }
 
 function stripAmount(text: string): { amount: number | null; rest: string } {
+  // Ein führendes Plus ist im Alltag die schnellste Einnahme-Markierung.
+  const signed = text.match(/(?:^|\s)\+\s*(\d{1,3}(?:\.\d{3})+|\d{1,4})(?:,\d{1,2})?/)
+  if (signed) {
+    const value = parseGermanAmount(signed[1])
+    if (Number.isFinite(value) && value > 0) return { amount: value, rest: text.replace(signed[0], ' ') }
+  }
   const patterns = [
     /€\s*(\d{1,3}(?:[.\s]\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/,
     /(\d{1,3}(?:[.\s]\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euro\b)/i,
@@ -170,6 +182,12 @@ function stripAmount(text: string): { amount: number | null; rest: string } {
     // Nackte Komma-Beträge ("Netflix 12,99") sind im Deutschen eindeutig Geld.
     /(?:^|\s)(\d{1,3}(?:\.\d{3})*,\d{2})(?=[\s,.;!?]|$)/,
   ]
+  // "3000 Gehalt" / "2.500 € Einnahmen": Betrag steht vor dem Einnahmenwort.
+  const incomeLead = text.match(INCOME_LEAD)
+  if (incomeLead) {
+    const value = parseGermanAmount(incomeLead[1])
+    if (Number.isFinite(value) && value > 0) return { amount: value, rest: text.replace(incomeLead[0], ' ') }
+  }
   // "Miete 800" / "Zahnarzt 45": ganze Zahl am Ende ist ein Betrag, wenn ein
   // Geld- oder konkreter Terminbegriff davorsteht. "Yoga 60" (Minuten) bleibt Aufgabe.
   const bareContext =
@@ -178,7 +196,11 @@ function stripAmount(text: string): { amount: number | null; rest: string } {
     INCOME_WORDS.test(text) ||
     (EVENT_WORDS.test(text) && !/\b(termin|treffen|meeting)\b/i.test(text))
   if (bareContext) {
-    const bare = text.match(/(?:^|\s)((?!20\d{2}\b)(?:\d{1,3}(?:\.\d{3})+|\d{1,4}))(?:\s*(?:€|eur|euro))?(?=\s*(?:am\s+\d{1,2}\.?\s*)?(?:monatlich|jährlich|wöchentlich|täglich|pro\s+(?:monat|jahr|woche|tag)|im\s+(?:monat|jahr)|jeden\s+(?:monat|tag|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))?\s*$)/i)
+    const explicitMoneyContext = MONEY_CONTEXT.test(text) || INCOME_WORDS.test(text)
+    const amountPattern = explicitMoneyContext
+      ? /(?:^|\s)\+?((?:\d{1,3}(?:\.\d{3})+|\d{1,4}))(?:\s*(?:€|eur|euro))?(?=\s*(?:am\s+\d{1,2}\.?\s*)?(?:monatlich|jährlich|wöchentlich|täglich|pro\s+(?:monat|jahr|woche|tag)|im\s+(?:monat|jahr)|jeden\s+(?:monat|tag|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))?\s*$)/i
+      : /(?:^|\s)\+?((?!20\d{2}\b)(?:\d{1,3}(?:\.\d{3})+|\d{1,4}))(?:\s*(?:€|eur|euro))?(?=\s*(?:am\s+\d{1,2}\.?\s*)?(?:monatlich|jährlich|wöchentlich|täglich|pro\s+(?:monat|jahr|woche|tag)|im\s+(?:monat|jahr)|jeden\s+(?:monat|tag|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))?\s*$)/i
+    const bare = text.match(amountPattern)
     if (bare) {
       const value = parseGermanAmount(bare[1])
       if (Number.isFinite(value) && value > 0) return { amount: value, rest: text.replace(bare[0], ' ') }
@@ -256,7 +278,7 @@ export function parseQuickText(input: string, now: Date = new Date()): ParsedEnt
     return { kind: 'note', title: words.slice(0, 60), content: body.slice(0, 4000) }
   }
 
-  const forced = /^(termin|aufgabe|todo|ausgabe|einnahme)\s*[:\-]\s*/i.exec(text)
+  const forced = /^(termin|aufgabe|todo|ausgaben?|einnahmen?)\s*[:\-]\s*/i.exec(text)
   const body = forced ? text.slice(forced[0].length).trim() : text
   const bodyLower = body.toLowerCase()
 
@@ -265,21 +287,38 @@ export function parseQuickText(input: string, now: Date = new Date()): ParsedEnt
   const amountHit = stripAmount(dateHit.rest)
   const date = dateHit.date
   const time = timeHit.time
-  const amount = amountHit.amount
+  let amount = amountHit.amount
+  let titleRest = amountHit.rest
   const priority = detectPriority(bodyLower)
-  const forcedKind = forced ? forced[1].toLowerCase() : null
+  const forcedRaw = forced ? forced[1].toLowerCase() : null
+  const forcedKind = forcedRaw === 'ausgaben' ? 'ausgabe' : forcedRaw === 'einnahmen' ? 'einnahme' : forcedRaw
+
+  // "Einnahme: 500" / "Ausgabe: 500": das Präfix liefert die Art, der Rest ist der Betrag.
+  if (amount === null && (forcedKind === 'einnahme' || forcedKind === 'ausgabe')) {
+    const bare = dateHit.rest.match(/(\d{1,3}(?:\.\d{3})+|\d{1,4})(?:,\d{1,2})?/)
+    if (bare) {
+      const value = parseGermanAmount(bare[1])
+      if (Number.isFinite(value) && value > 0) {
+        amount = value
+        titleRest = dateHit.rest.replace(bare[0], ' ')
+      }
+    }
+  }
 
   const forcedNonMoney = forcedKind === 'termin' || forcedKind === 'aufgabe' || forcedKind === 'todo'
 
   // ---------- Buchung ----------
   if (!forcedNonMoney && (amount !== null || forcedKind === 'ausgabe' || forcedKind === 'einnahme')) {
     if (amount === null) return null
+    const explicitPlus = /(?:^|\s)\+\s*\d/.test(bodyLower)
     const type: TxType =
-      forcedKind === 'einnahme' || (forcedKind !== 'ausgabe' && INCOME_WORDS.test(bodyLower)) ? 'INCOME' : 'EXPENSE'
+      forcedKind === 'einnahme' || (forcedKind !== 'ausgabe' && (explicitPlus || INCOME_WORDS.test(bodyLower)))
+        ? 'INCOME'
+        : 'EXPENSE'
     const category = type === 'INCOME' ? 'Einkommen' : detectCategory(bodyLower)
     return {
       kind: 'transaction',
-      title: cleanTitle(amountHit.rest, type === 'INCOME' ? 'Einnahme' : 'Ausgabe'),
+      title: cleanTitle(titleRest, type === 'INCOME' ? 'Einnahme' : 'Ausgabe'),
       amount,
       type,
       category: (CATEGORIES as readonly string[]).includes(category) ? category : 'Sonstiges',
@@ -296,7 +335,7 @@ export function parseQuickText(input: string, now: Date = new Date()): ParsedEnt
   if (forcedKind !== 'termin' && wantsTask) {
     return {
       kind: 'task',
-      title: cleanTitle(amountHit.rest, 'Aufgabe'),
+      title: cleanTitle(titleRest, 'Aufgabe'),
       dueDate: date ? dayKey(date) : null,
       priority,
       recurring: detectRecurring(bodyLower, 'task'),
@@ -320,7 +359,7 @@ export function parseQuickText(input: string, now: Date = new Date()): ParsedEnt
     const eventRecurring = birthday ? 'YEARLY' : detected === 'DAILY' ? 'NONE' : detected
     return {
       kind: 'event',
-      title: cleanTitle(amountHit.rest, 'Termin'),
+      title: cleanTitle(titleRest, 'Termin'),
       date: dayKey(eventDate),
       time,
       place: null,
