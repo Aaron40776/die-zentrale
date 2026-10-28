@@ -1,6 +1,6 @@
 # Die Zentrale — Projekt-Kontext (KI-Handoff)
 
-> **Stand:** v13 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
+> **Stand:** v14 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
 > Es gibt keinen Server, keine API-Routen, kein Prisma/SQLite und keine Cloud.
 
 ## 1. Was ist die App?
@@ -58,6 +58,7 @@ src/components/zentrale/
   SearchSheet.tsx         globale Suche
   SettingsSheet.tsx       JSON-Backup, CSV, Akzent, App-Info
   AnimatedAmount.tsx      großer Geldbetrag mit kurzem Count-up
+  ParsedPreview.tsx       prüfbare Chips für die lokale Schnelleingabe
   ImportSheet.tsx         JSON-Backup importieren
   MonthCalendar.tsx       Monatsraster
   DonutChart.tsx          Kategorien
@@ -77,7 +78,7 @@ src/lib/zentrale/
 
 public/
   manifest.webmanifest    PWA-Manifest + Shortcuts
-  sw.js                   Service Worker (CACHE v13)
+  sw.js                   Service Worker (CACHE v14)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 
@@ -131,6 +132,10 @@ CSV und JSON-Backup laufen direkt im Client (`buildTransactionsCsv`, `SettingsSh
   Doppel-Taps können keine doppelten Nachfolger/Buchungen erzeugen.
 
 ### Schnelleingabe
+
+`parseQuickText` erkennt Typ, Datum, Uhrzeit, Betrag und Kategorie lokal. Die
+`ParsedPreview` zeigt das Ergebnis vor dem Speichern als Chips; Änderungen im
+Formular bleiben danach weiterhin möglich.
 - `quickparse.ts` erkennt deutsche Beträge, Einnahmen, relative Daten, Wochentage,
   Wiederholungen und Kategorien — vollständig offline.
 - Es gibt keinen KI-Fallback und keinen Server mehr. Wenn die lokale Erkennung scheitert,
@@ -159,8 +164,9 @@ npx tsc --noEmit
 npm run build
 ```
 
-Danach die vier Views, Quick-Add, Abhaken (inkl. Nachfolger), Fixposten buchen/rückgängig,
-Budget, Suche, Backup-Export/-Import und die Backup-Erinnerung im Browser prüfen.
+Danach die vier Views, Quick-Add inklusive Vorschau-Chips, Abhaken (inkl. Nachfolger und
+Routine-Toast), Fixposten buchen/rückgängig, Budget, Suche, Backup-Export/-Import und die
+Backup-Erinnerung im Browser prüfen.
 Responsive mindestens bei 320×568, 393×852, 430×932, 768×1024, 844×390 und
 1280×800 prüfen; auf horizontales Scrollen und Safe-Areas achten.
 Testdaten vor der Abgabe über Einstellungen oder Browser-Speicher löschen.

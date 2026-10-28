@@ -36,6 +36,8 @@ und alles andere ist maximal zwei Tipps entfernt.
   Notch und Home-Indicator
 - **Lebendige Bewegung** — gleitende Navigation, weiche Bereichswechsel, animierte
   Geldbeträge; respektiert `prefers-reduced-motion`
+- **Erkannte Eingaben als Vorschau** — Typ, Datum, Uhrzeit, Betrag und Kategorie
+  erscheinen vor dem Speichern als prüfbare Chips
 
 ## Tech-Stack
 
@@ -87,5 +89,5 @@ Das hat eine wichtige Konsequenz:
 
 ## Projekt-Status
 
-**v13 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+**v14 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
 Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).

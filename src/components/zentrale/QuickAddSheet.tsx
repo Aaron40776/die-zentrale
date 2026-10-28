@@ -7,6 +7,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } f
 import { Input } from '@/components/ui/input'
 import { Segmented } from './bits'
 import { EventForm, NoteForm, TaskForm, TransactionForm } from './forms'
+import { ParsedPreview } from './ParsedPreview'
 import type { ParsedEntry, QuickTab, TransactionItem } from '@/lib/zentrale/types'
 import { parseQuickText } from '@/lib/zentrale/quickparse'
 import { cn } from '@/lib/utils'
@@ -111,7 +112,7 @@ export function QuickAddSheet({
     setParsing(true)
     const local = parseQuickText(text)
     if (local) {
-      applyEntry(local, true)
+      applyEntry(local)
       setParsing(false)
       return
     }
@@ -119,15 +120,11 @@ export function QuickAddSheet({
     toast({ title: 'Nicht erkannt.', description: 'Bitte direkt im Formular erfassen.', variant: 'destructive' })
   }
 
-  function applyEntry(entry: ParsedEntry, local: boolean) {
+  function applyEntry(entry: ParsedEntry) {
     setTab(entry.kind)
     setPrefill(entry)
     setPrefillToken((t) => t + 1)
     setSmart('')
-    toast({
-      title: local ? 'Lokal erkannt.' : 'Vorschau ausgefüllt.',
-      description: local ? 'Lokal erkannt – bitte kurz prüfen.' : 'Bitte kurz prüfen und speichern.',
-    })
   }
 
   /** Diktat starten (oder laufendes Diktat stoppen); Ergebnis läuft in dieselbe Verarbeitung. */
@@ -260,6 +257,7 @@ export function QuickAddSheet({
           />
         </div>
         <div className="max-h-[60dvh] overflow-y-auto px-4 pb-6 pt-4">
+          {prefill && prefill.kind === tab && <ParsedPreview key={prefillToken} entry={prefill} />}
           {tab === 'event' && (
             <EventForm
               key={`new-event-${initialTab}-${initialDate ?? ''}-${prefillToken}`}
