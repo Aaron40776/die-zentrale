@@ -1,0 +1,264 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-brand: var(--brand-base);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-ink: var(--brand-ink);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+
+
+/*
+ * Dark-Only: :root ist das Dark-Theme (warmes Anthrazit, goldene Akzente).
+ * Es gibt keinen Light-Modus – die App ist bewusst durchgaengig dunkel.
+ */
+:root {
+  --radius: 0.875rem;
+  /* Tieferes, waermes Schwarz: mehr Kontrast zu Karten = klare Ebenen */
+  --background: #0c0b09;
+  --foreground: #f2efe8;
+  --card: #171411;
+  --card-foreground: #f2efe8;
+  --popover: #211e19;
+  --popover-foreground: #f2efe8;
+  --primary: var(--brand-base);
+  --primary-foreground: var(--brand-ink);
+  --secondary: #262319;
+  --secondary-foreground: #f2efe8;
+  --muted: #211f1a;
+  --muted-foreground: #a39d90;
+  --accent: #34302a;
+  --accent-foreground: #f2efe8;
+  --destructive: #ef4444;
+  --border: #28241e;
+  --input: #34302a;
+  --ring: var(--brand-base);
+  --chart-1: var(--brand-base);
+  --chart-2: #2dd4bf;
+  --chart-3: #f87171;
+  --chart-4: #fb923c;
+  --chart-5: #4ade80;
+  --sidebar: #1a1816;
+  --sidebar-foreground: #e9e6e0;
+  --sidebar-primary: var(--brand-base);
+  --sidebar-primary-foreground: var(--brand-ink);
+  --sidebar-accent: #26231f;
+  --sidebar-accent-foreground: #e9e6e0;
+  --sidebar-border: #2b2823;
+  --sidebar-ring: var(--brand-base);
+
+  /*
+   * Akzentsystem: Gold ist Standard, umschaltbar via data-accent am <html>
+   * (siehe Einstellungen). Alles Brand- und Hero-Bezogene liest diese Variablen,
+   * dadurch wechselt der ganze Look mit einem Attribut.
+   */
+  --brand-base: #c9a84c;
+  --brand-ink: #221a05;
+  --brand-deep: #262115;
+  --brand-rgb: 201 168 76;
+  --hero-a: #2b2413;
+  --hero-b: #1d1910;
+  --hero-c: #14120e;
+  --hero-fg: #d9cfae;
+  --hero-fg-2: #ece5cf;
+  --fab-a: #e8cd7d;
+  --fab-c: #b08a3a;
+}
+
+html[data-accent='kupfer'] {
+  --brand-base: #d08a5a;
+  --brand-ink: #241204;
+  --brand-deep: #291a10;
+  --brand-rgb: 208 138 90;
+  --hero-a: #2b1e13;
+  --hero-b: #1e1610;
+  --hero-c: #140f0c;
+  --hero-fg: #e8c9ae;
+  --hero-fg-2: #f2e2d2;
+  --fab-a: #eec39a;
+  --fab-c: #a96a3d;
+}
+
+html[data-accent='salbei'] {
+  --brand-base: #a9bd93;
+  --brand-ink: #16200f;
+  --brand-deep: #1e2417;
+  --brand-rgb: 169 189 147;
+  --hero-a: #232a1b;
+  --hero-b: #181d13;
+  --hero-c: #11140e;
+  --hero-fg: #c9d6b8;
+  --hero-fg-2: #e4ecda;
+  --fab-a: #cfe0b8;
+  --fab-c: #7e9668;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: dark;
+    /* iOS: kein automatisches Aufblasen der Schrift bei Querformat */
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /*
+     * iPhone zuerst: SF Pro (Systemschrift) fuehlt sich nativ an und laedt 0 KB,
+     * Geist bleibt als Marke auf Desktop/Android dahinter.
+     */
+    font-family: -apple-system, BlinkMacSystemFont, var(--font-geist-sans), 'Segoe UI', system-ui, sans-serif;
+    /* Kein Pull-to-Refresh / Gummiband im App-Einsatz */
+    overscroll-behavior-y: none;
+    /* Grauer Aufblitz beim Antippen (iOS) aus */
+    -webkit-tap-highlight-color: transparent;
+    /* Doppel-Tipp-Zoom aus, Scrollen & Pinchen bleiben */
+    touch-action: manipulation;
+  }
+  button,
+  a,
+  [role='button'] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* App-Chrome lässt sich nicht versehentlich markieren */
+  nav,
+  nav button,
+  header button {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* iOS zoomt bei Fokus in jedes Feld unter 16px - deshalb hier festgenagelt */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  /* Native Inputs (date/time) im Dark-Stil */
+  input[type='date'],
+  input[type='time'] {
+    color-scheme: dark;
+  }
+}
+
+@layer components {
+  /*
+   * Unsichtbare Vergrößerung der Tap-Fläche (Apple HIG: mind. 44px),
+   * ohne den visuellen Knopf zu veraendern: +8px in jede Richtung.
+   */
+  .hit {
+    position: relative;
+  }
+  .hit::after {
+    content: '';
+    position: absolute;
+    inset: -0.5rem;
+    border-radius: inherit;
+  }
+  /*
+   * Tiefenlicht: fester Goldschimmer an zwei Ecken - gibt der dunklen
+   * Flaeche Dimension, ohne vom Inhalt abzulenken (liegt hinter allem).
+   */
+  .app-ambient {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(1100px 460px at 50% -14%, rgb(var(--brand-rgb) / 0.07), transparent 62%),
+      radial-gradient(900px 500px at 110% 115%, rgb(var(--brand-rgb) / 0.04), transparent 55%);
+  }
+  /* Hero-Gradient-Karte (Heute & Saldo): warme Buehne fuer die Kernzahl */
+  .card-gold {
+    background: linear-gradient(140deg, var(--hero-a) 0%, var(--hero-b) 52%, var(--hero-c) 100%);
+    border: 1px solid rgb(var(--brand-rgb) / 0.18);
+  }
+  /* Warme Beschriftung auf Hero-Karten, folgt dem Akzent */
+  .text-hero {
+    color: var(--hero-fg);
+  }
+  .text-hero-2 {
+    color: var(--hero-fg-2);
+  }
+}
+
+/* Sanftes Einblenden beim View-Wechsel; Haekchen zeichnet sich nach */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes checkdraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.check-draw path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: checkdraw 0.28s ease-out 0.05s forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .check-draw path {
+    animation: none;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

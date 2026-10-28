@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Termin: Datum + Uhrzeit, 3-stufige manuelle Wichtigkeit,
+// optional jaehrlich (Geburtstage & Jahrestage wandern jedes Jahr mit)
+model Event {
+  id        String   @id @default(cuid())
+  title     String
+  date      DateTime
+  place     String?
+  note      String?
+  priority  String   @default("MEDIUM") // HIGH | MEDIUM | LOW
+  recurring String   @default("NONE") // NONE | YEARLY
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Aufgabe: optional mit Faelligkeit + Wichtigkeit, Erledigt-Mechanik,
+// optional wiederkehrend (Routine: beim Abhaken entsteht die naechste Fälligkeit automatisch)
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  dueDate     DateTime?
+  priority    String    @default("MEDIUM") // HIGH | MEDIUM | LOW
+  recurring   String    @default("NONE") // NONE | DAILY | WEEKLY | MONTHLY | YEARLY
+  done        Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Buchung: Ein-/Ausgabe, Kategorie, optionale Wiederholung (Abo/Fixposten)
+model Transaction {
+  id        String    @id @default(cuid())
+  title     String
+  amount    Float
+  type      String // INCOME | EXPENSE
+  category  String    @default("Sonstiges")
+  date      DateTime  @default(now())
+  recurring String    @default("NONE") // NONE | WEEKLY | MONTHLY | YEARLY
+  nextDue   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Notiz: Text, kann angeheftet werden
+model Note {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @default("")
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Einstellungen als Key-Value (z. B. Monatsbudget: key = "budget_monthly")
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

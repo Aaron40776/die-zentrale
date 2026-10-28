@@ -1,0 +1,39 @@
+{
+  "name": "Die Zentrale",
+  "short_name": "Zentrale",
+  "description": "Termine, Finanzen, Aufgaben und Notizen — alles an einem Ort, farbig sortiert.",
+  "lang": "de",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0c0b09",
+  "theme_color": "#0c0b09",
+  "shortcuts": [
+    {
+      "name": "Neue Ausgabe erfassen",
+      "short_name": "Ausgabe",
+      "description": "Direkt eine Einnahme oder Ausgabe buchen",
+      "url": "/?quick=transaction",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Neuer Termin",
+      "short_name": "Termin",
+      "description": "Direkt einen Termin erfassen",
+      "url": "/?quick=event",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Neue Aufgabe",
+      "short_name": "Aufgabe",
+      "description": "Direkt eine Aufgabe erfassen",
+      "url": "/?quick=task",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
