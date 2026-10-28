@@ -17,15 +17,9 @@ function NavButton({ item, active, onNavigate }: { item: (typeof NAV)[number]; a
       type="button"
       onClick={() => onNavigate(item.id)}
       aria-current={active ? 'page' : undefined}
-      className="flex h-full flex-col items-center justify-center gap-1 pt-1"
+      className="relative z-10 flex h-full flex-col items-center justify-center gap-1 pt-1"
     >
-      <span
-        aria-hidden
-        className={cn(
-          'flex h-7 w-12 items-center justify-center rounded-full transition-all duration-200',
-          active ? 'bg-brand/15' : 'bg-transparent'
-        )}
-      >
+      <span aria-hidden className="flex h-7 w-12 items-center justify-center rounded-full">
         <item.icon
           className={cn('h-5 w-5 transition-colors', active ? 'text-brand' : 'text-stone-500')}
           strokeWidth={active ? 2.4 : 2}
@@ -63,13 +57,21 @@ export function BottomNav({
             type="button"
             onClick={onAdd}
             aria-label="Neu erfassen"
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-b from-[var(--fab-a)] via-brand to-[var(--fab-c)] text-brand-ink shadow-[0_10px_28px_-4px_rgb(var(--brand-rgb)/0.45)] ring-4 ring-[#0c0b09] transition-transform duration-150 active:scale-90"
+            className="group flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-b from-[var(--fab-a)] via-brand to-[var(--fab-c)] text-brand-ink shadow-[0_10px_28px_-4px_rgb(var(--brand-rgb)/0.45)] ring-4 ring-[#0c0b09] transition-transform duration-150 active:scale-90"
           >
-            <Plus className="h-7 w-7" strokeWidth={2.6} aria-hidden />
+            <Plus className="h-7 w-7 transition-transform duration-200 group-active:rotate-90" strokeWidth={2.6} aria-hidden />
           </button>
         </div>
         {/* Glas-Leinwand */}
-        <div className="grid h-16 grid-cols-5 items-stretch overflow-hidden rounded-[26px] border border-white/[0.07] bg-[#161310]/85 shadow-[0_14px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+        <div className="relative grid h-16 grid-cols-5 items-stretch overflow-hidden rounded-[26px] border border-white/[0.07] bg-[#161310]/85 shadow-[0_14px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+          <span
+            aria-hidden
+            className="motion-nav-pill pointer-events-none absolute inset-y-0 left-0 z-0 flex w-1/5 flex-col items-center justify-center gap-1 pt-1"
+            style={{ transform: `translate3d(${{ heute: 0, termine: 1, finanzen: 3, aufgaben: 4 }[view] * 100}%, 0, 0)` }}
+          >
+            <span className="h-7 w-12 rounded-full bg-brand/15" />
+            <span className="invisible text-[10px] font-medium" aria-hidden>.</span>
+          </span>
           <NavButton item={NAV[0]} active={view === 'heute'} onNavigate={onNavigate} />
           <NavButton item={NAV[1]} active={view === 'termine'} onNavigate={onNavigate} />
           <div aria-hidden />

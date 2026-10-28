@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { AnimatedAmount } from '@/components/zentrale/AnimatedAmount'
 import { EmptyHint, SectionTitle, SkeletonRow } from '@/components/zentrale/bits'
 import { DonutChart } from '@/components/zentrale/DonutChart'
 import { TrendChart } from '@/components/zentrale/TrendChart'
@@ -209,8 +210,8 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
               <span className="text-[11px] font-medium uppercase tracking-wider text-hero">Aktueller Saldo</span>
               <Wallet className="h-4 w-4 text-hero" aria-hidden />
             </div>
-            <p className={cn('mt-1 text-3xl font-bold tabular-nums tracking-tight', balance >= 0 ? 'text-green-300' : 'text-red-300')}>
-              {fmtEur(balance)}
+            <p className={cn('mt-1 text-3xl font-bold tracking-tight', balance >= 0 ? 'text-green-300' : 'text-red-300')}>
+              <AnimatedAmount value={balance} />
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-hero-2">

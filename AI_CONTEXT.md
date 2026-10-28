@@ -1,6 +1,6 @@
 # Die Zentrale — Projekt-Kontext (KI-Handoff)
 
-> **Stand:** v12 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
+> **Stand:** v13 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
 > Es gibt keinen Server, keine API-Routen, kein Prisma/SQLite und keine Cloud.
 
 ## 1. Was ist die App?
@@ -23,6 +23,8 @@ dieselbe App zentriert: bis 640 px in einer 448-px-Spalte, darüber in einer 512
 6. **Subtraktion vor Addition.**
 7. **Lokal zuerst.** Keine Netzwerkabhängigkeit für Kernfunktionen.
 8. **Daten gehören dem Nutzer.** Jederzeit JSON-Backup exportierbar.
+9. **Bewegung trägt Bedeutung.** Kurze, federnde Übergänge zeigen Zustandsänderungen;
+   `prefers-reduced-motion` schaltet alle Animationen ab. Keine blockierenden Effekte.
 
 ## 3. Architektur
 
@@ -55,6 +57,7 @@ src/components/zentrale/
   EditSheet.tsx           Bearbeiten / Duplizieren / Löschen
   SearchSheet.tsx         globale Suche
   SettingsSheet.tsx       JSON-Backup, CSV, Akzent, App-Info
+  AnimatedAmount.tsx      großer Geldbetrag mit kurzem Count-up
   ImportSheet.tsx         JSON-Backup importieren
   MonthCalendar.tsx       Monatsraster
   DonutChart.tsx          Kategorien
@@ -74,7 +77,7 @@ src/lib/zentrale/
 
 public/
   manifest.webmanifest    PWA-Manifest + Shortcuts
-  sw.js                   Service Worker (CACHE v12)
+  sw.js                   Service Worker (CACHE v13)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 
@@ -163,7 +166,8 @@ Responsive mindestens bei 320×568, 393×852, 430×932, 768×1024, 844×390 und
 Testdaten vor der Abgabe über Einstellungen oder Browser-Speicher löschen.
 
 **Wichtig:** Bei Shell-/Asset-Änderungen `CACHE` in `public/sw.js` bumpen, sonst sehen
-installierte Geräte die alte Version.
+installierte Geräte die alte Version. Motion-Check: Bereichswechsel, Nav-Pille und
+animierte Beträge mit emulate `prefers-reduced-motion: reduce` prüfen.
 
 ## 9. Deployment
 
