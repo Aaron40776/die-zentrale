@@ -1,6 +1,6 @@
 # Die Zentrale — Projekt-Kontext (KI-Handoff)
 
-> **Stand:** v17 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
+> **Stand:** v18 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
 > Es gibt keinen Server, keine API-Routen, kein Prisma/SQLite und keine Cloud.
 
 ## 1. Was ist die App?
@@ -79,7 +79,7 @@ src/lib/zentrale/
 
 public/
   manifest.webmanifest    PWA-Manifest + Shortcuts
-  sw.js                   Service Worker (CACHE v17)
+  sw.js                   Service Worker (CACHE v18)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 

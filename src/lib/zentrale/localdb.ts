@@ -402,6 +402,13 @@ async function deleteTask(id: string) {
   return { ok: true, data: { ok: true } }
 }
 
+async function deleteCompletedTasks() {
+  const tasks = await all<StoredTask>('tasks')
+  const completed = tasks.filter((task) => task.done)
+  for (const task of completed) await remove('tasks', task.id)
+  return { ok: true, data: { count: completed.length } }
+}
+
 // ---------- Buchungen ----------
 
 function transactionFromBody(
@@ -766,6 +773,7 @@ async function dispatch<T>(url: string, method: string, body?: Record<string, un
         return { ok: true, data: tasks as T }
       }
       if (!id && method === 'POST') return (await createTask(payload)) as LocalResult<T>
+      if (id === 'completed' && method === 'DELETE') return (await deleteCompletedTasks()) as LocalResult<T>
       if (id && method === 'PATCH') return (await updateTask(id, payload)) as LocalResult<T>
       if (id && method === 'DELETE') return (await deleteTask(id)) as LocalResult<T>
     }

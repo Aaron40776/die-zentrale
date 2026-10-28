@@ -384,7 +384,7 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-foreground">Die Zentrale</span>
-                    <span className="block text-xs text-muted-foreground">Version 17 · Local-First · nur auf diesem Gerät</span>
+                    <span className="block text-xs text-muted-foreground">Version 18 · Local-First · nur auf diesem Gerät</span>
                   </span>
                 </div>
               </div>
