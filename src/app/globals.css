@@ -103,6 +103,10 @@
   --hero-fg-2: #ece5cf;
   --fab-a: #e8cd7d;
   --fab-c: #b08a3a;
+
+  /* Gemeinsame Bewegungssprache: kurz, federnd, nie blockierend. */
+  --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.9, 0.25, 1);
 }
 
 html[data-accent='kupfer'] {
@@ -239,9 +243,25 @@ html[data-accent='salbei'] {
     stroke-dashoffset: 0;
   }
 }
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
 .animate-rise {
-  animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise 0.45s var(--ease-emphasized) both;
+}
+.animate-view {
+  animation: view-enter 0.3s var(--ease-spring) both;
+}
+.motion-nav-pill {
+  transition: transform 0.32s var(--ease-spring);
 }
 .check-draw path {
   stroke-dasharray: 24;
@@ -250,9 +270,13 @@ html[data-accent='salbei'] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-rise,
-  .check-draw path {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
