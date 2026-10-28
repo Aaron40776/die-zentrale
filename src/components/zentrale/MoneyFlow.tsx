@@ -23,7 +23,6 @@ interface Props {
 
 const RING_RADIUS = 47
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
-const BUBBLE_ORBIT = 37.5
 
 function pctLabel(amount: number, total: number): string {
   if (total <= 0) return '0%'
@@ -31,18 +30,17 @@ function pctLabel(amount: number, total: number): string {
   return pct === 0 ? '<1%' : `${pct}%`
 }
 
-function bubbleSize(amount: number, total: number): number {
-  return Math.round(36 + Math.sqrt(Math.max(0, amount) / Math.max(1, total)) * 12)
-}
-
 /**
- * Monatskugel: Die Gesamtsumme steht in der Mitte, die Kategorien liegen als
- * kleine Blasen in der großen Kugel. Der Ring zeigt die Anteile, ein Tipp filtert.
+ * Monatsfluss: eine große Summenkugel als Anker, darunter eine gut lesbare
+ * Rangliste mit echten Beträgen und proportionalen Blasenbalken. Die Blasen
+ * im Ring dienen nur der Verknüpfung – die Namen stehen bewusst in der Liste.
  */
 export function MoneyFlow({ type, onTypeChange, categories, total, activeCategory, onCategory }: Props) {
   const isIncome = type === 'INCOME'
   const label = isIncome ? 'Einnahmen' : 'Ausgaben'
   const count = categories.reduce((sum, category) => sum + category.count, 0)
+  const top = categories[0]
+  const topPct = top ? pctLabel(top.amount, total) : '0%'
 
   const segments = categories.map((category, index) => {
     const fraction = total > 0 ? category.amount / total : 0
@@ -85,7 +83,7 @@ export function MoneyFlow({ type, onTypeChange, categories, total, activeCategor
 
       <div
         className={cn(
-          'relative mx-auto aspect-square w-[min(258px,100%)] rounded-full border border-white/10 bg-[radial-gradient(circle_at_34%_26%,rgba(255,255,255,0.08),rgba(255,255,255,0.015)_46%,rgba(0,0,0,0.18))]',
+          'animate-bubble-pop relative mx-auto aspect-square w-[min(232px,100%)] rounded-full border border-white/10 bg-[radial-gradient(circle_at_34%_26%,rgba(255,255,255,0.08),rgba(255,255,255,0.015)_46%,rgba(0,0,0,0.18))]',
           isIncome
             ? 'shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_24px_70px_-28px_rgba(74,222,128,0.45)]'
             : 'shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_24px_70px_-28px_rgba(248,113,113,0.42)]'
@@ -110,13 +108,35 @@ export function MoneyFlow({ type, onTypeChange, categories, total, activeCategor
                 strokeWidth="3.6"
                 strokeDasharray={`${visible} ${RING_CIRCUMFERENCE}`}
                 strokeDashoffset={-start * RING_CIRCUMFERENCE}
-                strokeOpacity={activeCategory && activeCategory !== category.label ? 0.45 : 0.95}
+                strokeOpacity={activeCategory && activeCategory !== category.label ? 0.38 : 0.96}
+                style={{ transition: 'stroke-dasharray 500ms ease, stroke-dashoffset 500ms ease, stroke-opacity 180ms ease' }}
               />
             )
           })}
         </svg>
 
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-[23%] text-center">
+        {/* Kleine Farbpunkte auf dem Ring verbinden die Kugel mit den Zeilen darunter. */}
+        {segments.map(({ category, fraction, start }) => {
+          const angle = ((-90 + (start + fraction / 2) * 360) * Math.PI) / 180
+          const left = 50 + RING_RADIUS * Math.cos(angle)
+          const topDot = 50 + RING_RADIUS * Math.sin(angle)
+          const active = activeCategory === category.label
+          return (
+            <span
+              key={`dot-${category.label}`}
+              aria-hidden
+              className={cn('pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-all', active && 'h-2.5 w-2.5 ring-2 ring-white/50')}
+              style={{
+                left: `${left}%`,
+                top: `${topDot}%`,
+                backgroundColor: CATEGORY_COLORS[category.label] ?? '#a8a29e',
+                boxShadow: `0 0 10px ${CATEGORY_COLORS[category.label] ?? '#a8a29e'}aa`,
+              }}
+            />
+          )
+        })}
+
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-[22%] text-center">
           <span className={cn('text-[10px] font-semibold uppercase tracking-[0.14em]', isIncome ? 'text-green-300' : 'text-red-300')}>
             {label}
           </span>
@@ -127,63 +147,26 @@ export function MoneyFlow({ type, onTypeChange, categories, total, activeCategor
             {categories.length} {categories.length === 1 ? 'Kategorie' : 'Kategorien'} · {count} {count === 1 ? 'Buchung' : 'Buchungen'}
           </span>
         </div>
-
-        {segments.map(({ category }, index) => {
-          // Blasen gleichmäßig verteilen, nicht nach Segmentmitte: Ein großer
-          // Posten würde sonst alle kleinen Blasen auf engem Raum zusammendrängen.
-          const angle = ((-90 + (index / Math.max(1, segments.length)) * 360) * Math.PI) / 180
-          const left = 50 + BUBBLE_ORBIT * Math.cos(angle)
-          const top = 50 + BUBBLE_ORBIT * Math.sin(angle)
-          const size = bubbleSize(category.amount, total)
-          const bubbleColor = CATEGORY_COLORS[category.label] ?? '#a8a29e'
-          const active = activeCategory === category.label
-          const pct = pctLabel(category.amount, total)
-
-          return (
-            <button
-              key={`${category.label}-${category.amount}-${category.count}-${index}`}
-              type="button"
-              onClick={() => onCategory(category.label)}
-              aria-pressed={active}
-              aria-label={`${category.label}: ${fmtEur(category.amount)} (${pct} der Monatssumme). ${
-                active ? 'Filter entfernen' : 'Buchungen filtern'
-              }`}
-              title={`${category.label}: ${fmtEur(category.amount)} · ${category.count} ${
-                category.count === 1 ? 'Buchung' : 'Buchungen'
-              }`}
-              className="group absolute z-10 flex h-[52px] w-[52px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/80"
-              style={{ left: `${left}%`, top: `${top}%` }}
-            >
-              <span className="animate-bubble-pop block" aria-hidden>
-                <span
-                  className={cn(
-                    'flex items-center justify-center rounded-full border-2 shadow-[0_5px_18px_rgba(0,0,0,0.35)] transition-transform duration-200 group-hover:-translate-y-0.5 group-active:scale-95',
-                    active && 'ring-2 ring-brand/80 ring-offset-2 ring-offset-card'
-                  )}
-                  style={{
-                    width: size,
-                    height: size,
-                    borderColor: bubbleColor,
-                    background: `radial-gradient(circle at 32% 26%, ${bubbleColor}52, ${bubbleColor}18 68%, rgba(12,11,9,0.55) 74%)`,
-                  }}
-                >
-                  <span className="text-[10px] font-bold tabular-nums" style={{ color: bubbleColor }}>
-                    {pct}
-                  </span>
-                </span>
-              </span>
-            </button>
-          )
-        })}
       </div>
 
+      {top && (
+        <p className="mt-2 text-center text-[11px] text-stone-500">
+          <span className="font-semibold" style={{ color: CATEGORY_COLORS[top.label] ?? '#a8a29e' }}>
+            {top.label}
+          </span>{' '}
+          ist mit {topPct} {isIncome ? 'deine größte Einnahme' : 'dein größter Posten'}.
+        </p>
+      )}
+
       {categories.length > 0 ? (
-        <ul className="mt-3 grid grid-cols-2 gap-x-2 gap-y-1.5">
-          {categories.map((category) => {
+        <ul className="mt-4 space-y-2">
+          {categories.map((category, index) => {
             const pct = pctLabel(category.amount, total)
+            const share = total > 0 ? (category.amount / total) * 100 : 0
             const active = activeCategory === category.label
+            const color = CATEGORY_COLORS[category.label] ?? '#a8a29e'
             return (
-              <li key={category.label}>
+              <li key={category.label} className="animate-rise" style={{ animationDelay: `${60 + index * 35}ms` }}>
                 <button
                   type="button"
                   onClick={() => onCategory(category.label)}
@@ -192,32 +175,51 @@ export function MoneyFlow({ type, onTypeChange, categories, total, activeCategor
                     active ? 'Filter entfernen' : 'Buchungen filtern'
                   }`}
                   className={cn(
-                    'hit flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-[11px] transition-colors hover:bg-white/[0.04]',
-                    active ? 'bg-white/[0.06] text-foreground' : 'text-muted-foreground'
+                    'hit group relative flex w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl border px-3 py-2.5 text-left transition-all',
+                    active
+                      ? 'border-brand/60 bg-white/[0.07] shadow-[0_0_0_1px_rgba(212,165,116,0.15)]'
+                      : 'border-border/70 bg-muted/20 hover:border-white/20 hover:bg-white/[0.04]'
                   )}
                 >
                   <span
                     aria-hidden
-                    className="h-2 w-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: CATEGORY_COLORS[category.label] ?? '#a8a29e' }}
+                    className="pointer-events-none absolute inset-y-0 left-0 rounded-r-2xl transition-[width] duration-500 ease-out"
+                    style={{
+                      width: `${Math.max(share, 2.5)}%`,
+                      background: `linear-gradient(90deg, ${color}42, ${color}0d)`,
+                    }}
                   />
-                  <span className="min-w-0 flex-1 truncate">{category.label}</span>
-                  <span className="shrink-0 tabular-nums text-foreground/80">{fmtEur(category.amount)}</span>
-                  <span className="w-8 shrink-0 text-right tabular-nums text-stone-500">{pct}</span>
+                  <span
+                    aria-hidden
+                    className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border"
+                    style={{ borderColor: `${color}70`, background: `${color}20` }}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                  </span>
+                  <span className="relative min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold text-foreground">{category.label}</span>
+                    <span className="block text-[10px] text-stone-500">
+                      {category.count} {category.count === 1 ? 'Buchung' : 'Buchungen'} · {pct}
+                    </span>
+                  </span>
+                  <AnimatedAmount
+                    value={category.amount}
+                    className="relative shrink-0 text-[13px] font-bold text-foreground"
+                  />
                 </button>
               </li>
             )
           })}
         </ul>
       ) : (
-        <p className="mt-3 text-center text-[12px] text-stone-500">
+        <p className="mt-3 rounded-2xl border border-dashed border-border px-3 py-4 text-center text-[12px] text-stone-500">
           Keine {isIncome ? 'Einnahmen' : 'Ausgaben'} in diesem Monat.
         </p>
       )}
 
       <p className="mt-3 text-center text-[11px] text-stone-500">
         {categories.length > 0
-          ? 'Tippe auf eine Blase oder Zeile, um die Buchungen zu filtern.'
+          ? 'Tippe auf eine Zeile, um die Buchungen zu filtern. Der Ring zeigt die Anteile.'
           : isIncome
             ? 'Wechsle zu den Ausgaben oder erfasse eine Einnahme.'
             : 'Wechsle zu den Einnahmen oder erfasse eine Ausgabe.'}

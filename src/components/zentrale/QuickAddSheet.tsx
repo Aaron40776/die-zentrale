@@ -205,7 +205,7 @@ export function QuickAddSheet({
               <Input
                 value={smart}
                 onChange={(e) => setSmart(e.target.value)}
-                placeholder={listening ? 'Sprich jetzt …' : 'z. B. Zahnarzt morgen 14:30, 45 €'}
+                placeholder={listening ? 'Sprich jetzt …' : 'z. B. Gehalt 2.500 € · Döner 6,50'}
                 className={SMART_INPUT}
                 maxLength={300}
                 enterKeyHint="go"
