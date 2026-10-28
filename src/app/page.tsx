@@ -327,6 +327,7 @@ export default function Page() {
               onSearch={() => setSearchOpen(true)}
               onRefresh={() => void z.refresh()}
               onRestoreRecovery={() => void restoreRecovery()}
+              onAddEventAt={(date) => openQuickAdd('event', date)}
             />
           )}
           {view === 'termine' && (
