@@ -129,7 +129,7 @@ export function EditSheet({
 
   return (
     <Drawer open={!!target} onOpenChange={(o) => !o && onClose()}>
-      <DrawerContent className="mx-auto max-w-md">
+      <DrawerContent className="mx-auto max-w-md sm:max-w-lg">
         <DrawerHeader className="pb-1 text-left">
           <DrawerTitle>{target ? `${KIND_LABEL[target.kind]} bearbeiten` : ''}</DrawerTitle>
           <DrawerDescription>Änderungen übernehmen sofort in der Übersicht.</DrawerDescription>

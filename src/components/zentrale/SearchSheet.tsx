@@ -108,7 +108,7 @@ export function SearchSheet({ open, onOpenChange, onPick, events, tasks, transac
         if (!o) setQ('')
       }}
     >
-      <DrawerContent className="mx-auto max-w-md">
+      <DrawerContent className="mx-auto max-w-md sm:max-w-lg">
         <DrawerHeader className="pb-1 text-left">
           <DrawerTitle>Suchen</DrawerTitle>
           <DrawerDescription>Termine, Aufgaben, Buchungen und Notizen auf einen Streich finden.</DrawerDescription>

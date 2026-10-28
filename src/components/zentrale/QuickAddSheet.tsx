@@ -190,7 +190,7 @@ export function QuickAddSheet({
 
   return (
     <Drawer open={open} onOpenChange={handleClose}>
-      <DrawerContent className="mx-auto max-w-md">
+      <DrawerContent className="mx-auto max-w-md sm:max-w-lg">
         <DrawerHeader className="pb-1 text-left">
           <DrawerTitle>Neu erfassen</DrawerTitle>
           <DrawerDescription>Alles landet an seinem Ort – und sofort in der Übersicht.</DrawerDescription>

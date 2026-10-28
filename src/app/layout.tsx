@@ -56,6 +56,8 @@ export default function RootLayout({
   return (
     <html lang="de" className="dark" suppressHydrationWarning>
       <head>
+        {/* iOS nutzt für den Standalone-Modus weiterhin dieses Meta-Tag. */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         {/* Akzentfarbe vor dem ersten Paint setzen – kein Farbblitz beim Start. */}
         <script
           dangerouslySetInnerHTML={{

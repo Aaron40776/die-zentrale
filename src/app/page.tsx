@@ -254,7 +254,7 @@ export default function Page() {
     <div className="min-h-dvh">
       {/* Safe-Area-oben: im Standalone-Modus (Home-Bildschirm) bleibt Platz unter Dynamic Island/Statusleiste.
           Unten: Platz fuer die schwebende Glas-Navigation inkl. Abstand. */}
-      <main className="mx-auto max-w-md px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(112px+env(safe-area-inset-bottom))]">
+      <main className="mx-auto w-full max-w-md sm:max-w-lg px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(112px+env(safe-area-inset-bottom))]">
         {z.error && view !== 'heute' && (
           <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-[13px] text-red-300">
             <span className="min-w-0 flex-1">{z.error}</span>

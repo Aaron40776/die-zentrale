@@ -103,7 +103,7 @@ export function ImportSheet({
 
   return (
     <Drawer open={open} onOpenChange={handleOpenChange}>
-      <DrawerContent className="mx-auto max-w-md">
+      <DrawerContent className="mx-auto max-w-md sm:max-w-lg">
         <DrawerHeader className="pb-1 text-left">
           <DrawerTitle>Backup importieren</DrawerTitle>
           <DrawerDescription>Stelle dein JSON-Backup wieder her – zum Beispiel nach einem Gerätewechsel.</DrawerDescription>

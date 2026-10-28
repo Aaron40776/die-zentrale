@@ -1,6 +1,6 @@
 # Die Zentrale — Projekt-Kontext (KI-Handoff)
 
-> **Stand:** v11 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
+> **Stand:** v12 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
 > Es gibt keinen Server, keine API-Routen, kein Prisma/SQLite und keine Cloud.
 
 ## 1. Was ist die App?
@@ -10,13 +10,14 @@ Dark-Only, mobile-first, installierbar als PWA. Ziel ist ein täglich genutzter
 „Daily Driver" mit 5-Farben-Logik und einer lokalen deutschen Schnelleingabe.
 
 **Zielgerät:** iPhone 15 Pro (393×852 pt), installiert vom Home-Screen. Desktop zeigt
-dieselbe App zentriert in einer 448-px-Spalte.
+dieselbe App zentriert: bis 640 px in einer 448-px-Spalte, darüber in einer 512-px-Spalte.
 
 ## 2. Nicht verhandelbare Prinzipien
 
 1. **Dark-Only.** Kein Light-Mode. Basis `#0c0b09`, Karten `#171411`.
 2. **Keine Demo-Daten.** Start leer mit Willkommens-Screen.
-3. **iPhone zuerst.** Safe-Areas, Touch-Ziele ≥ 44 pt, Inputs 16 px, `dvh`.
+3. **iPhone zuerst, überall sauber.** Safe-Areas oben/unten, Touch-Ziele ≥ 44 pt,
+   Inputs 16 px, `dvh`; getestet von 320 px bis Desktop und im Querformat.
 4. **Farben tragen Bedeutung** (5-Farben-Logik).
 5. **Erinnerungen nur visuell** — keine Push-Benachrichtigungen.
 6. **Subtraktion vor Addition.**
@@ -73,7 +74,7 @@ src/lib/zentrale/
 
 public/
   manifest.webmanifest    PWA-Manifest + Shortcuts
-  sw.js                   Service Worker (CACHE v11)
+  sw.js                   Service Worker (CACHE v12)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 
@@ -157,6 +158,8 @@ npm run build
 
 Danach die vier Views, Quick-Add, Abhaken (inkl. Nachfolger), Fixposten buchen/rückgängig,
 Budget, Suche, Backup-Export/-Import und die Backup-Erinnerung im Browser prüfen.
+Responsive mindestens bei 320×568, 393×852, 430×932, 768×1024, 844×390 und
+1280×800 prüfen; auf horizontales Scrollen und Safe-Areas achten.
 Testdaten vor der Abgabe über Einstellungen oder Browser-Speicher löschen.
 
 **Wichtig:** Bei Shell-/Asset-Änderungen `CACHE` in `public/sw.js` bumpen, sonst sehen

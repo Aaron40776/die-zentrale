@@ -140,7 +140,7 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="mx-auto max-w-md">
+        <DrawerContent className="mx-auto max-w-md sm:max-w-lg">
           <DrawerHeader className="pb-1 text-left">
             <DrawerTitle>Einstellungen</DrawerTitle>
             <DrawerDescription>Daten sichern, übertragen und zur App.</DrawerDescription>
@@ -226,7 +226,7 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-foreground">Die Zentrale</span>
-                    <span className="block text-xs text-muted-foreground">Version 11 · Local-First · nur auf diesem Gerät</span>
+                    <span className="block text-xs text-muted-foreground">Version 12 · Local-First · nur auf diesem Gerät</span>
                   </span>
                 </div>
               </div>

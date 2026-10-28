@@ -56,7 +56,7 @@ export function BottomNav({
       aria-label="Hauptnavigation"
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 select-none px-4 pb-[calc(env(safe-area-inset-bottom)+10px)]"
     >
-      <div className="pointer-events-auto relative mx-auto max-w-md">
+      <div className="pointer-events-auto relative mx-auto max-w-md sm:max-w-lg">
         {/* Zentrale +-Taste, ragt über die Leinwand hinaus */}
         <div className="absolute -top-6 left-1/2 z-10 -translate-x-1/2">
           <button

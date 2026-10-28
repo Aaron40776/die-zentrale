@@ -32,6 +32,8 @@ und alles andere ist maximal zwei Tipps entfernt.
 - **Globale Suche**, **Duplizieren**, **JSON-Backup Export/Import**, **CSV-Export**
 - **PWA** — installierbar, offline nutzbar, Homescreen-Shortcuts, App-Badge,
   3 Akzentfarben (Gold/Kupfer/Salbei)
+- **Responsive** — 320-px-Handys bis Desktop, inklusive Safe-Areas für Dynamic Island,
+  Notch und Home-Indicator
 
 ## Tech-Stack
 
@@ -83,5 +85,5 @@ Das hat eine wichtige Konsequenz:
 
 ## Projekt-Status
 
-**v11 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+**v12 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
 Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).
