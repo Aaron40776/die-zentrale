@@ -1,6 +1,6 @@
 # Die Zentrale — Projekt-Kontext (KI-Handoff)
 
-> **Stand:** v14 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
+> **Stand:** v15 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
 > Es gibt keinen Server, keine API-Routen, kein Prisma/SQLite und keine Cloud.
 
 ## 1. Was ist die App?
@@ -61,7 +61,7 @@ src/components/zentrale/
   ParsedPreview.tsx       prüfbare Chips für die lokale Schnelleingabe
   ImportSheet.tsx         JSON-Backup importieren
   MonthCalendar.tsx       Monatsraster
-  DonutChart.tsx          Kategorien
+  MoneyFlow.tsx           interaktive Kategorien-Blasen + Filter
   TrendChart.tsx          6-Monats-Verlauf
   rows.tsx                Zeilen + Wischgesten
   forms.tsx               4 Formulare
@@ -78,7 +78,7 @@ src/lib/zentrale/
 
 public/
   manifest.webmanifest    PWA-Manifest + Shortcuts
-  sw.js                   Service Worker (CACHE v14)
+  sw.js                   Service Worker (CACHE v15)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 
@@ -136,6 +136,14 @@ CSV und JSON-Backup laufen direkt im Client (`buildTransactionsCsv`, `SettingsSh
 `parseQuickText` erkennt Typ, Datum, Uhrzeit, Betrag und Kategorie lokal. Die
 `ParsedPreview` zeigt das Ergebnis vor dem Speichern als Chips; Änderungen im
 Formular bleiben danach weiterhin möglich.
+
+### Geldfluss
+
+`MoneyFlow` fasst die gebuchten Buchungen des gewählten Monats je Kategorie
+zusammen. Die Blasengröße folgt dem Anteil an Einnahmen bzw. Ausgaben; ein Tipp
+setzt den Kategoriefilter, scrollt zu den Buchungen und lässt sich dort wieder
+lösen. Geplante zukünftige Einmal-Buchungen zählen wie in den Summen erst nach
+dem Buchen.
 - `quickparse.ts` erkennt deutsche Beträge, Einnahmen, relative Daten, Wochentage,
   Wiederholungen und Kategorien — vollständig offline.
 - Es gibt keinen KI-Fallback und keinen Server mehr. Wenn die lokale Erkennung scheitert,
@@ -164,9 +172,10 @@ npx tsc --noEmit
 npm run build
 ```
 
-Danach die vier Views, Quick-Add inklusive Vorschau-Chips, Abhaken (inkl. Nachfolger und
-Routine-Toast), Fixposten buchen/rückgängig, Budget, Suche, Backup-Export/-Import und die
-Backup-Erinnerung im Browser prüfen.
+Danach die vier Views, Quick-Add inklusive Vorschau-Chips, Geldfluss-Blasen inkl.
+Kategoriefilter und Sprung zu den Buchungen, Abhaken (inkl. Nachfolger und Routine-Toast),
+Fixposten buchen/rückgängig, Budget, Suche, Backup-Export/-Import und die Backup-Erinnerung
+im Browser prüfen.
 Responsive mindestens bei 320×568, 393×852, 430×932, 768×1024, 844×390 und
 1280×800 prüfen; auf horizontales Scrollen und Safe-Areas achten.
 Testdaten vor der Abgabe über Einstellungen oder Browser-Speicher löschen.
