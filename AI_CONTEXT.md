@@ -1,6 +1,6 @@
 # Die Zentrale — Projekt-Kontext (KI-Handoff)
 
-> **Stand:** v16 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
+> **Stand:** v17 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
 > Es gibt keinen Server, keine API-Routen, kein Prisma/SQLite und keine Cloud.
 
 ## 1. Was ist die App?
@@ -62,6 +62,7 @@ src/components/zentrale/
   ImportSheet.tsx         JSON-Backup importieren
   MonthCalendar.tsx       Monatsraster
   MoneyFlow.tsx           Monatskugel mit Kategorie-Blasen + Filter
+  recovery.ts             automatische lokale Sicherung + Speicherstatus
   TrendChart.tsx          6-Monats-Verlauf
   rows.tsx                Zeilen + Wischgesten
   forms.tsx               4 Formulare
@@ -78,7 +79,7 @@ src/lib/zentrale/
 
 public/
   manifest.webmanifest    PWA-Manifest + Shortcuts
-  sw.js                   Service Worker (CACHE v16)
+  sw.js                   Service Worker (CACHE v17)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 

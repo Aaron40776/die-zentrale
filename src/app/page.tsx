@@ -14,6 +14,7 @@ import { TermineView } from '@/components/zentrale/views/TermineView'
 import { addDays, dayDiff, eventDate, fmtEur, fmtShortDate, isoFromInput, dayKey } from '@/lib/zentrale/date'
 import type { EditTarget, QuickTab, TaskItem, TransactionItem, ViewKind } from '@/lib/zentrale/types'
 import { nextTaskDue } from '@/lib/zentrale/localdb'
+import { restoreRecoverySnapshot } from '@/lib/zentrale/recovery'
 import { apiSend, apiSendJson, useZentrale } from '@/lib/zentrale/useZentrale'
 
 const KIND_LABEL: Record<EditTarget['kind'], string> = {
@@ -200,6 +201,16 @@ export default function Page() {
     deleteWithUndo({ kind: 'task', task: t })
   }
 
+  async function restoreRecovery() {
+    const result = await restoreRecoverySnapshot()
+    if (!result.ok) {
+      toast({ title: 'Wiederherstellen fehlgeschlagen.', description: result.error, variant: 'destructive' })
+      return
+    }
+    await z.refresh()
+    toast({ title: 'Sicherung wiederhergestellt.', description: `${result.count} Einträge sind zurück.` })
+  }
+
   function openQuickAdd(tab: QuickTab, date?: string | null) {
     setQuickTab(tab)
     setQuickDate(date ?? null)
@@ -299,6 +310,7 @@ export default function Page() {
               bookingId={bookingId}
               onSearch={() => setSearchOpen(true)}
               onRefresh={() => void z.refresh()}
+              onRestoreRecovery={() => void restoreRecovery()}
             />
           )}
           {view === 'termine' && (

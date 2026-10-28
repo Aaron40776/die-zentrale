@@ -1,11 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CalendarCheck, Check, Download, FileSpreadsheet, Info, Palette, ShieldCheck, Upload } from 'lucide-react'
+import { CalendarCheck, Check, CloudOff, Download, FileSpreadsheet, HardDrive, Info, Palette, RotateCcw, ShieldCheck, Trash2, Upload } from 'lucide-react'
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
+import { useToast } from '@/hooks/use-toast'
 import { ImportSheet } from '@/components/zentrale/ImportSheet'
 import { dayKey } from '@/lib/zentrale/date'
 import { downloadCsv, getBudget, markBackupExported } from '@/lib/zentrale/localdb'
+import {
+  clearRecoverySnapshot,
+  isPreviewOrigin,
+  recoveryCount,
+  restoreRecoverySnapshot,
+  useRecoverySnapshot,
+} from '@/lib/zentrale/recovery'
 import { useLastBackupAt } from '@/lib/zentrale/useBackupStatus'
 import type { EventItem, NoteItem, TaskItem, TransactionItem } from '@/lib/zentrale/types'
 import { cn } from '@/lib/utils'
@@ -103,6 +111,40 @@ function exportBackup(events: EventItem[], tasks: TaskItem[], transactions: Tran
   }
 }
 
+interface StorageInfo {
+  supported: boolean
+  persisted: boolean | null
+  usage: number
+  quota: number
+}
+
+async function loadStorageInfo(): Promise<StorageInfo> {
+  if (typeof navigator === 'undefined' || !navigator.storage) {
+    return { supported: false, persisted: null, usage: 0, quota: 0 }
+  }
+  let persisted: boolean | null = null
+  let usage = 0
+  let quota = 0
+  try {
+    persisted = (await navigator.storage.persisted?.()) ?? null
+  } catch {
+    /* optional */
+  }
+  try {
+    const estimate = await navigator.storage.estimate?.()
+    usage = estimate?.usage ?? 0
+    quota = estimate?.quota ?? 0
+  } catch {
+    /* optional */
+  }
+  return { supported: true, persisted, usage, quota }
+}
+
+function formatBytes(value: number): string {
+  if (!value) return '0 MB'
+  return `${(value / 1024 / 1024).toFixed(value > 10 * 1024 * 1024 ? 0 : 1)} MB`
+}
+
 /**
  * Einstellungen: alle Daten-Operationen (Backup & Export) und App-Infos
  * an einem Ort - aus den daily Views raus, damit die Kopfzeilen ruhig bleiben.
@@ -110,11 +152,78 @@ function exportBackup(events: EventItem[], tasks: TaskItem[], transactions: Tran
 export function SettingsSheet({ open, onOpenChange, events, tasks, transactions, notes, onImported }: Props) {
   const [importOpen, setImportOpen] = useState(false)
   const [accent, setAccent] = useState<AccentId>('gold')
+  const { toast } = useToast()
   const lastBackup = useLastBackupAt()
+  const snapshot = useRecoverySnapshot()
+  const [storage, setStorage] = useState<StorageInfo | null>(null)
+  const [restoring, setRestoring] = useState(false)
   const entryCount = events.length + tasks.length + transactions.length + notes.length
+  const snapCount = recoveryCount(snapshot)
   const backupLabel = lastBackup
     ? `Zuletzt gesichert: ${new Date(lastBackup).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
     : 'Noch keine Sicherung angelegt'
+  const preview = isPreviewOrigin()
+  const storageHint =
+    storage === null
+      ? 'Speicherstatus wird geprüft …'
+      : !storage.supported
+        ? 'Dieser Browser bietet keine dauerhafte Speicherzusage.'
+        : storage.persisted
+          ? `Dauerhaft ja · ${formatBytes(storage.usage)} belegt. Der Browser kann die Daten seltener verwerfen.`
+          : 'Noch nicht dauerhaft. Tippe, um den Browser um dauerhaften Speicher zu bitten.'
+
+  useEffect(() => {
+    if (!open) return
+    let alive = true
+    void loadStorageInfo().then((info) => {
+      if (alive) setStorage(info)
+    })
+    return () => {
+      alive = false
+    }
+  }, [open])
+
+  async function requestPersistence() {
+    if (!storage?.supported || !navigator.storage?.persist) return
+    try {
+      const granted = await navigator.storage.persist()
+      setStorage(await loadStorageInfo())
+      toast({
+        title: granted ? 'Dauerhaft gespeichert' : 'Nicht dauerhaft garantiert',
+        description: granted
+          ? 'Der Browser soll die Daten nun seltener verwerfen.'
+          : 'iOS/Safari kann die Zusage ablehnen. Die automatische Kopie bleibt als Sicherheitsnetz.',
+      })
+    } catch {
+      toast({ title: 'Speicherstatus konnte nicht geändert werden.', variant: 'destructive' })
+    }
+  }
+
+  async function restoreRecovery() {
+    if (!snapshot || restoring) return
+    if (entryCount > 0) {
+      const ok = window.confirm(
+        `Die automatische Kopie (${snapCount} Einträge) ersetzt die aktuellen ${entryCount} Einträge. Fortfahren?`
+      )
+      if (!ok) return
+    }
+    setRestoring(true)
+    const result = await restoreRecoverySnapshot()
+    setRestoring(false)
+    if (!result.ok) {
+      toast({ title: 'Wiederherstellen fehlgeschlagen.', description: result.error, variant: 'destructive' })
+      return
+    }
+    onImported()
+    toast({ title: 'Sicherung wiederhergestellt.', description: `${result.count} Einträge sind zurück.` })
+  }
+
+  function clearRecovery() {
+    if (!snapshot) return
+    if (!window.confirm('Automatische Sicherheitskopie löschen? Ein laufendes Haupt-Backup bleibt davon unberührt.')) return
+    clearRecoverySnapshot()
+    toast({ title: 'Sicherheitskopie gelöscht.' })
+  }
 
   // Aktuelle Akzentwahl beim Öffnen übernehmen.
   useEffect(() => {
@@ -175,7 +284,56 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
                   title="Nur auf diesem Gerät"
                   hint={`${entryCount} ${entryCount === 1 ? 'Eintrag' : 'Einträge'} in diesem Browser · ${backupLabel}.`}
                 />
+                <Row
+                  icon={HardDrive}
+                  title="Dauerhafter Speicher"
+                  hint={storageHint}
+                  onClick={storage?.supported && !storage.persisted ? requestPersistence : undefined}
+                />
               </div>
+              {preview && (
+                <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-amber-300">
+                  <CloudOff className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                  Vorschau-Adresse: Diese URL hat einen eigenen Speicher. Nutze für deine echten Daten immer die feste
+                  Produktionsadresse bzw. das installierte Icon.
+                </p>
+              )}
+            </section>
+
+            <section aria-label="Automatisches Sicherheitsnetz">
+              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Sicherheitsnetz</h3>
+              <div className="space-y-2">
+                {snapshot ? (
+                  <>
+                    <Row
+                      icon={RotateCcw}
+                      title={restoring ? 'Sicherung wird wiederhergestellt …' : 'Automatische Sicherung wiederherstellen'}
+                      hint={`${snapCount} ${snapCount === 1 ? 'Eintrag' : 'Einträge'} · ${new Date(snapshot.savedAt).toLocaleString(
+                        'de-DE',
+                        { dateStyle: 'short', timeStyle: 'short' }
+                      )} · wird nach jeder Änderung aktualisiert.`}
+                      onClick={restoring ? undefined : restoreRecovery}
+                    />
+                    <Row
+                      icon={Trash2}
+                      title="Sicherheitskopie löschen"
+                      hint="Nur die automatische Kopie – die aktuellen Daten bleiben erhalten."
+                      onClick={clearRecovery}
+                    />
+                  </>
+                ) : (
+                  <Row
+                    icon={ShieldCheck}
+                    title="Noch keine automatische Kopie"
+                    hint="Entsteht automatisch, sobald Einträge vorhanden sind."
+                  />
+                )}
+              </div>
+              <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-stone-500">
+                <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                Die Kopie liegt lokal im selben Browser. Sie hilft, wenn die Hauptdatenbank leer ist, ersetzt aber keinen
+                Export bei gelöschten Browserdaten.
+              </p>
             </section>
 
             <section aria-label="Erscheinungsbild">
@@ -226,7 +384,7 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-foreground">Die Zentrale</span>
-                    <span className="block text-xs text-muted-foreground">Version 16 · Local-First · nur auf diesem Gerät</span>
+                    <span className="block text-xs text-muted-foreground">Version 17 · Local-First · nur auf diesem Gerät</span>
                   </span>
                 </div>
               </div>

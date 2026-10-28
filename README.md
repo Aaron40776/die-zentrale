@@ -31,6 +31,8 @@ und alles andere ist maximal zwei Tipps entfernt.
 - **Geldfluss-Monatskugel** — Gesamtsumme und Kategorien in einer großen Kugel;
   Umschalter für Einnahmen/Ausgaben, Tipp filtert die Buchungsliste.
 - **Backup-Erinnerung** — zeigt, wenn Daten nur auf dem Gerät liegen und die letzte Sicherung fehlt oder älter als 14 Tage ist
+- **Automatisches Sicherheitsnetz** — nach jeder Änderung entsteht lokal eine zusätzliche Kopie; bei leerer Hauptdatenbank lässt sie sich direkt wiederherstellen
+- **Dauerhafter Speicher** — Status in den Einstellungen, Anfrage beim Browser und Hinweis auf Vorschau-Adressen
 - **Rückgängig** — Löschen und Fixposten-Buchen zeigen einen Rückgängig-Toast
 - **Globale Suche**, **Duplizieren**, **JSON-Backup Export/Import**, **CSV-Export**
 - **PWA** — installierbar, offline nutzbar, Homescreen-Shortcuts, App-Badge,
@@ -92,5 +94,5 @@ Das hat eine wichtige Konsequenz:
 
 ## Projekt-Status
 
-**v16 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+**v17 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
 Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).
