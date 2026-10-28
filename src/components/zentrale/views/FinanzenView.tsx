@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Loader2, PiggyBank, RefreshCw, Search, Wallet } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Loader2, PiggyBank, RefreshCw, Search, Wallet, X } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { AnimatedAmount } from '@/components/zentrale/AnimatedAmount'
 import { EmptyHint, SectionTitle, SkeletonRow } from '@/components/zentrale/bits'
-import { DonutChart } from '@/components/zentrale/DonutChart'
+import { MoneyFlow, type FlowCategory } from '@/components/zentrale/MoneyFlow'
 import { TrendChart } from '@/components/zentrale/TrendChart'
 import { dayDiff, dayKey, fmtEur } from '@/lib/zentrale/date'
 import { forecastLabel, forecastMonthEnd, isPlannedEntry, monthlyEquivalent } from '@/lib/zentrale/finance'
@@ -34,10 +34,24 @@ interface Props {
 
 type Filter = 'alle' | 'INCOME' | 'EXPENSE'
 
-/** Finanzen: Saldo, Monatsbilanz mit Monatsnavigation, 6-Monats-Verlauf, Kategorien-Donut, Budget, Fixposten & Buchungen. */
+function groupCategories(items: TransactionItem[]): FlowCategory[] {
+  const map = new Map<string, { amount: number; count: number }>()
+  for (const t of items) {
+    const entry = map.get(t.category) ?? { amount: 0, count: 0 }
+    entry.amount += t.amount
+    entry.count += 1
+    map.set(t.category, entry)
+  }
+  return [...map.entries()]
+    .map(([label, values]) => ({ label, ...values }))
+    .sort((a, b) => b.amount - a.amount)
+}
+
+/** Finanzen: Saldo, Monatsbilanz mit Monatsnavigation, 6-Monats-Verlauf, Geldfluss-Blasen, Budget, Fixposten & Buchungen. */
 export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuickAdd, onBookFixed, bookingId = null, onSearch }: Props) {
   const { toast } = useToast()
   const [filter, setFilter] = useState<Filter>('alle')
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [monthOffset, setMonthOffset] = useState(0) // 0 = laufender Monat
 
   // Monatsbudget
@@ -112,11 +126,11 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
   const outSum = bookedMonthTx.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
   const monthNet = inSum - outSum
 
-  const sliceMap = new Map<string, number>()
-  for (const t of bookedMonthTx.filter((x) => x.type === 'EXPENSE' && x.category !== 'Einkommen')) {
-    sliceMap.set(t.category, (sliceMap.get(t.category) ?? 0) + t.amount)
-  }
-  const slices = [...sliceMap.entries()].sort((a, b) => b[1] - a[1])
+  const expenseCategories = groupCategories(
+    bookedMonthTx.filter((x) => x.type === 'EXPENSE' && x.category !== 'Einkommen')
+  )
+  const incomeCategories = groupCategories(bookedMonthTx.filter((x) => x.type === 'INCOME'))
+  const hasFlow = expenseCategories.length > 0 || incomeCategories.length > 0
 
   const fx = forecastMonthEnd(transactions, balance)
 
@@ -153,6 +167,7 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
   const list = monthTx
     .filter((t) => t.recurring === 'NONE')
     .filter((t) => filter === 'alle' || t.type === filter)
+    .filter((t) => categoryFilter === null || t.category === categoryFilter)
     .sort((a, b) => (a.date > b.date ? -1 : 1))
 
   // Gruppierung nach Tag (absteigend)
@@ -301,13 +316,16 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
             </div>
           )}
 
-          {/* Donut mit Monatsnavigation */}
+          {/* Geldfluss mit Monatsnavigation */}
           <SectionTitle
             right={
               <div className="flex items-center gap-1" role="group" aria-label="Monat wählen">
                 <button
                   type="button"
-                  onClick={() => setMonthOffset((o) => o + 1)}
+                  onClick={() => {
+                    setMonthOffset((o) => o + 1)
+                    setCategoryFilter(null)
+                  }}
                   aria-label="Früherer Monat"
                   className="hit flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-stone-600 hover:text-foreground"
                 >
@@ -318,7 +336,10 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
                 </span>
                 <button
                   type="button"
-                  onClick={() => setMonthOffset((o) => Math.max(0, o - 1))}
+                  onClick={() => {
+                    setMonthOffset((o) => Math.max(0, o - 1))
+                    setCategoryFilter(null)
+                  }}
                   disabled={monthOffset === 0}
                   aria-label="Späterer Monat"
                   className="hit flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors enabled:hover:border-stone-600 enabled:hover:text-foreground disabled:opacity-30"
@@ -328,19 +349,34 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
               </div>
             }
           >
-            Ausgaben nach Kategorie
+            Geldfluss
           </SectionTitle>
-          {slices.length === 0 ? (
-            <EmptyHint
-              icon={Wallet}
-              title="Keine Ausgaben"
-              hint={monthOffset === 0 ? 'Erfasse deine erste Ausgabe dieses Monats.' : `Keine Ausgaben in ${monthLabel}.`}
-              action={monthOffset === 0 && onQuickAdd ? { label: 'Ausgabe erfassen', onClick: onQuickAdd } : undefined}
+          {hasFlow ? (
+            <MoneyFlow
+              income={incomeCategories}
+              expenses={expenseCategories}
+              inSum={inSum}
+              outSum={outSum}
+              activeCategory={categoryFilter}
+              onCategory={(category) => {
+                const next = categoryFilter === category ? null : category
+                setCategoryFilter(next)
+                setFilter('alle')
+                if (next) {
+                  window.requestAnimationFrame(() => {
+                    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                    document.getElementById('buchungen')?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
+                  })
+                }
+              }}
             />
           ) : (
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <DonutChart slices={slices.map(([label, amount]) => ({ label, amount, color: CATEGORY_COLORS[label] ?? '#a8a29e' }))} />
-            </div>
+            <EmptyHint
+              icon={Wallet}
+              title="Noch kein Geldfluss"
+              hint={monthOffset === 0 ? 'Erfasse deine erste Buchung dieses Monats.' : `Keine Buchungen in ${monthLabel}.`}
+              action={monthOffset === 0 && onQuickAdd ? { label: 'Buchung erfassen', onClick: onQuickAdd } : undefined}
+            />
           )}
 
           {/* Fixposten & Abos */}
@@ -425,15 +461,32 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
           )}
 
           {/* Buchungen des gewählten Monats */}
+          <div id="buchungen" className="scroll-mt-4" aria-hidden />
           <SectionTitle right={
             monthOffset === 0 ? undefined : (
-              <button type="button" onClick={() => setMonthOffset(0)} className="hit py-1 text-xs font-semibold text-brand hover:underline">
+              <button type="button" onClick={() => { setMonthOffset(0); setCategoryFilter(null) }} className="hit py-1 text-xs font-semibold text-brand hover:underline">
                 Zurück zum aktuellen Monat
               </button>
             )
           }>
             Buchungen · {monthLabel}
           </SectionTitle>
+          {categoryFilter && (
+            <div className="mb-2 flex items-center gap-2 text-[12px] text-muted-foreground">
+              <span>
+                Kategorie: <strong className="font-semibold text-foreground">{categoryFilter}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setCategoryFilter(null)}
+                aria-label="Kategoriefilter entfernen"
+                className="hit inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-foreground transition-colors hover:bg-accent"
+              >
+                <X className="h-3 w-3" aria-hidden />
+                Filter löschen
+              </button>
+            </div>
+          )}
           <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-muted p-1" role="tablist" aria-label="Buchungen filtern">
             {(
               [
@@ -447,7 +500,10 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
                 type="button"
                 role="tab"
                 aria-selected={filter === o.v}
-                onClick={() => setFilter(o.v)}
+                onClick={() => {
+                  setFilter(o.v)
+                  setCategoryFilter(null)
+                }}
                 className={cn(
                   'rounded-lg px-2 py-1.5 text-[13px] font-medium transition-all',
                   filter === o.v ? 'bg-accent text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -462,7 +518,13 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
             <EmptyHint
               icon={Wallet}
               title="Keine Buchungen"
-              hint={monthOffset === 0 ? 'Erfasse eine Einnahme oder Ausgabe – in zwei Sekunden erledigt.' : `Für ${monthLabel} sind keine Buchungen erfasst.`}
+              hint={
+                categoryFilter
+                  ? `Keine Buchungen in ${categoryFilter}.`
+                  : monthOffset === 0
+                    ? 'Erfasse eine Einnahme oder Ausgabe – in zwei Sekunden erledigt.'
+                    : `Für ${monthLabel} sind keine Buchungen erfasst.`
+              }
               action={monthOffset === 0 && onQuickAdd ? { label: 'Buchung erfassen', onClick: onQuickAdd } : undefined}
             />
           ) : (
