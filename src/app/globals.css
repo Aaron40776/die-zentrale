@@ -287,3 +287,20 @@ html[data-accent='salbei'] {
     display: none;
   }
 }
+@keyframes bubble-pop {
+  0% {
+    opacity: 0.35;
+    transform: scale(0.72);
+  }
+  68% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-bubble-pop {
+  animation: bubble-pop 0.42s var(--ease-spring) both;
+}
