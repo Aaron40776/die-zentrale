@@ -7,6 +7,24 @@
 
 ---
 
+## 0. KI-Onboarding — so arbeitest du an diesem Projekt weiter
+
+1. **Lies dieses Dokument vollständig**, bevor du etwas änderst. Kritisch: §2 (Prinzipien),
+   §8 (Kernlogik — hier liegen die leichtesten Fehlbau-Fallen) und §11 (bewusst
+   abgelehnte Ideen — nicht erneut vorschlagen oder einbauen).
+2. **Setup:** `bun install && bunx prisma generate && bun run dev` → http://localhost:3000.
+   Der leere Willkommens-Screen ist der korrekte Startzustand, kein Bug.
+3. **Ändern → prüfen:** Nach jeder Änderung QA nach §12 (Browser 393×852 UND 1280×800,
+   alle berührten Flows durchklicken, danach DB wippen: `bun prisma/seed.ts`).
+4. **Konventionen:** lint + `bunx tsc --noEmit` müssen 0 Fehler sein; bei sichtbaren
+   Änderungen die Versionszeile im SettingsSheet hochzählen; bei Shell-Änderungen die
+   CACHE-Konstante in `public/sw.js` bumpen (sonst sehen installierte Geräte nichts Neues).
+5. **Kontext aktuell halten:** Widerspricht dieses Dokument dem Code, gewinnt der Code —
+   und du aktualisierst AI_CONTEXT.md im selben Commit mit. Ein veraltetes Handoff-Dokument
+   ist schlimmer als keins.
+
+---
+
 ## 1. Was ist „Die Zentrale"?
 
 Eine **private**, nicht-kommerzielle Organisations-App des Nutzers (nur eigener Gebrauch, kein

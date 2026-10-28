@@ -220,3 +220,23 @@ Stage Summary:
 - "Die Zentrale" v7: Fixposten mit einem Tipp buchen, überall Löschen mit "Rückgängig", Diktieren statt Tippen, Eingabe-Merker, 3 Akzentfarben (Gold/Kupfer/Salbei) + Empty-State-Direktaktionen + Wisch-Hinweis
 - Fälligkeits-Semantik gefixt: heute fällige Fixposten erscheinen jetzt korrekt am Fälligkeitstag
 - App bleibt leer für eigene Einträge; Wipe via bun prisma/seed.ts; Akzent via Einstellungen oder localStorage 'zentrale-accent'
+
+---
+Task ID: 10
+Agent: Z.ai (Hauptagent)
+Task: Projekt-Export für KI-Handoff — "alles was das Programm kann notieren/speichern, wo eine andere KI draufzugreifen kann (z. B. GitHub-Repo)"
+
+Work Log:
+- AI_CONTEXT.md (298 Zeilen) geschrieben: vollständiges KI-Handoff-Dokument (Zweck, Prinzipien, Tech-Stack, Datei-Map, Datenmodell, API, UX-Flows, Kernlogik inkl. 5-Farben/Fixposten/KI-Parsing/Akzente, Design-System, PWA, bewusste Ausschlüsse, QA-Konventionen, Ideen-Pool, Zustand v7)
+- README.md (GitHub-fähig) geschrieben: One-Liner, Features, Tech-Stack, Setup, Datenschutz-Hinweis (SQLite lokal, DB nicht im Repo)
+- docs/ angelegt: Konzeptdokument-PDF (400K) + mockup.png (Wireframe) ins Repo kopiert
+- .gitignore erweitert: db/*.db (privat!), tool-results/, download/, .zscripts/, Caddyfile, examples/, tests/, QA-Screenshots, scripts/app_konzept/, mini-services/; BUGFIX: fehlender Zeilenumbruch hatte app_konzept-Pattern zerschlagen
+- Git: gesamte History in EINEN sauberen Wurzel-Commit gequetscht (orphan branch v7clean -> main, c9f4a2c "Die Zentrale v7 — Dark Edition"); Grund: db/custom.db war in der ALTEN History committet — Voll-History-Push hätte persönliche Einträge geleakt!
+- Verifikation: 114 Dateien im Repo, 0 private Dateien (db/.env/node_modules/QA-PNGs/app_konzept/mini-services draußen), Zip-Check bestätigt sauber
+- Export: git archive -> download/Die_Zentrale_v7_Quellcode.zip (772K, 141 Einträge); AI_CONTEXT.md-Kopie -> download/Die_Zentrale_KI_Kontext.md (19K, eigenständig an jede KI übergebbar)
+- GitHub-Push bewusst NICHT ausgeführt: kein gh CLI, keine Credentials im Container; Anleitung (Web-Upload / git push) dem Nutzer gegeben
+
+Stage Summary:
+- Projekt ist jetzt portabel: Zip enthält kompletten lauffähigen Quellcode + KI-Kontext + Konzept-PDF; ein einziger Commit, keine privaten Daten
+- Für andere KI: entweder Zip entpacken + AI_CONTEXT.md lesen, oder nur Die_Zentrale_KI_Kontext.md in den Chat geben
+- Repo-Zustand: main @ c9f4a2c, Einzel-Commit, .env (DATABASE_URL) dokumentiert aber ausgeschlossen
