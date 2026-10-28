@@ -168,6 +168,11 @@ function nextFutureOccurrence(base: string, recurring: Recurring, anchor: number
   return next ? next.toISOString() : null
 }
 
+/** Nächste Fälligkeit einer Routine – dieselbe Logik wie beim Anlegen des Nachfolgers. */
+export function nextTaskDue(task: TaskItem): string | null {
+  return nextFutureOccurrence(task.dueDate ?? startOfDay(new Date()).toISOString(), task.recurring, task.recurringAnchor)
+}
+
 function sameDueDay(a: string | null, b: string | null): boolean {
   if (!a || !b) return false
   return dayTime(a) === dayTime(b)

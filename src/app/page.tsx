@@ -11,8 +11,9 @@ import { AufgabenView } from '@/components/zentrale/views/AufgabenView'
 import { FinanzenView } from '@/components/zentrale/views/FinanzenView'
 import { HeuteView } from '@/components/zentrale/views/HeuteView'
 import { TermineView } from '@/components/zentrale/views/TermineView'
-import { addDays, dayDiff, eventDate, fmtEur, isoFromInput, dayKey } from '@/lib/zentrale/date'
+import { addDays, dayDiff, eventDate, fmtEur, fmtShortDate, isoFromInput, dayKey } from '@/lib/zentrale/date'
 import type { EditTarget, QuickTab, TaskItem, TransactionItem, ViewKind } from '@/lib/zentrale/types'
+import { nextTaskDue } from '@/lib/zentrale/localdb'
 import { apiSend, apiSendJson, useZentrale } from '@/lib/zentrale/useZentrale'
 
 const KIND_LABEL: Record<EditTarget['kind'], string> = {
@@ -43,8 +44,24 @@ export default function Page() {
     togglingRef.current.add(t.id)
     try {
       const ok = await apiSend(`/api/tasks/${t.id}`, 'PATCH', { done: !t.done })
-      if (ok) await z.refresh()
-      else toast({ title: 'Aufgabe konnte nicht aktualisiert werden.', variant: 'destructive' })
+      if (ok) {
+        await z.refresh()
+        if (!t.done && t.recurring !== 'NONE') {
+          const next = nextTaskDue(t)
+          toast({
+            title: 'Routine abgehakt.',
+            description: next ? `Nächste Ausführung: ${fmtShortDate(next)}.` : 'Der nächste Lauf wurde angelegt.',
+            duration: 4000,
+            action: (
+              <ToastAction altText="Aufgaben öffnen" onClick={() => setView('aufgaben')}>
+                Ansehen
+              </ToastAction>
+            ),
+          })
+        }
+      } else {
+        toast({ title: 'Aufgabe konnte nicht aktualisiert werden.', variant: 'destructive' })
+      }
     } finally {
       togglingRef.current.delete(t.id)
     }
