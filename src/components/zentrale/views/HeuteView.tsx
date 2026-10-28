@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ChevronRight, ListTodo, Loader2, Pin, Search, Settings, Smartphone, StickyNote, Wallet, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ChevronRight, ListTodo, Loader2, Pin, Search, Settings, ShieldCheck, Smartphone, StickyNote, Wallet, X } from 'lucide-react'
 import { CountdownChip, EmptyHint, SectionTitle, SkeletonRow } from '@/components/zentrale/bits'
 import { EventRow, TaskRow } from '@/components/zentrale/rows'
 import { SettingsSheet } from '@/components/zentrale/SettingsSheet'
 import { addDays, dayDiff, dayKey, eventOccurrences, fmtEur, fmtLongDate, startOfDay } from '@/lib/zentrale/date'
 import { forecastLabel, forecastMonthEnd, isPlannedEntry } from '@/lib/zentrale/finance'
+import { useLastBackupAt } from '@/lib/zentrale/useBackupStatus'
 import type { EditTarget, EventItem, NoteItem, QuickTab, TaskItem, TransactionItem } from '@/lib/zentrale/types'
 import { cn } from '@/lib/utils'
 
@@ -89,6 +90,7 @@ function ProgressRing({ pct, label }: { pct: number; label: string }) {
 export function HeuteView({ events, tasks, transactions, notes, loading, error, onNavigate, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd, onBookFixed, bookingId = null, onSearch, onRefresh }: Props) {
   const today = new Date()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const lastBackupAt = useLastBackupAt()
   const showInstallHint = useSyncExternalStore(installHintStore.subscribe, installHintStore.get, () => false)
 
   const overdueTasks = tasks
@@ -149,6 +151,9 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
 
   const isCompletelyEmpty =
     events.length === 0 && tasks.length === 0 && transactions.length === 0 && notes.length === 0
+  const totalEntries = events.length + tasks.length + transactions.length + notes.length
+  const backupAgeDays = lastBackupAt ? Math.floor((Date.now() - lastBackupAt) / 86_400_000) : null
+  const showBackupHint = !loading && !isCompletelyEmpty && (lastBackupAt === null || (backupAgeDays ?? 0) >= 14)
 
   // Begrüßung nach Tageszeit
   const hour = today.getHours()
@@ -317,6 +322,28 @@ export function HeuteView({ events, tasks, transactions, notes, loading, error, 
                 className="hit shrink-0 rounded-full p-1 text-stone-500 transition-colors hover:text-foreground"
               >
                 <X className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          )}
+
+          {showBackupHint && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold text-foreground">
+                  {lastBackupAt === null ? 'Noch kein Backup' : `Letztes Backup vor ${backupAgeDays} Tagen`}
+                </p>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+                  {totalEntries} {totalEntries === 1 ? 'Eintrag liegt' : 'Einträge liegen'} nur in diesem Browser. Ein
+                  Export schützt vor Datenverlust, wenn Browserdaten gelöscht werden.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="hit shrink-0 rounded-full bg-amber-500/15 px-3 py-1.5 text-[11px] font-semibold text-amber-200 transition-colors hover:bg-amber-500/25"
+              >
+                Sichern
               </button>
             </div>
           )}

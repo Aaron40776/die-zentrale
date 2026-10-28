@@ -1,5 +1,4 @@
-// Lokale Schnelleingabe: versteht kurze deutsche Zeilen ohne KI-Backend.
-// Wird vom Server als Fallback genutzt, wenn der KI-Dienst nicht erreichbar ist.
+// Lokale Schnelleingabe: versteht kurze deutsche Zeilen ohne Netz und ohne Backend.
 import { addMonthsClamped, dayKey, startOfDay } from './date'
 import { CATEGORIES, type ParsedEntry, type Priority, type Recurring, type TxType } from './types'
 

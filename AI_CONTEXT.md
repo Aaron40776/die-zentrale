@@ -1,6 +1,6 @@
 # Die Zentrale — Projekt-Kontext (KI-Handoff)
 
-> **Stand:** v10 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
+> **Stand:** v11 · Oktober 2026. Die App ist eine **reine Browser-PWA**.
 > Es gibt keinen Server, keine API-Routen, kein Prisma/SQLite und keine Cloud.
 
 ## 1. Was ist die App?
@@ -65,6 +65,7 @@ src/components/zentrale/
 src/lib/zentrale/
   localdb.ts              IndexedDB-Repository + lokale API-Fassade + CSV
   useZentrale.ts          Laden/Refresh + apiSend/apiSendJson
+  useBackupStatus.ts      reaktiver Status der letzten Sicherung
   types.ts                Typen, Kategorien, Farben
   date.ts                 Datums-Helfer
   finance.ts              advanceDue, Prognose, Monatsäquivalente
@@ -72,7 +73,7 @@ src/lib/zentrale/
 
 public/
   manifest.webmanifest    PWA-Manifest + Shortcuts
-  sw.js                   Service Worker (CACHE v10)
+  sw.js                   Service Worker (CACHE v11)
   icon-192/512, apple-touch-icon, logo.svg
 ```
 
@@ -135,6 +136,15 @@ CSV und JSON-Backup laufen direkt im Client (`buildTransactionsCsv`, `SettingsSh
 `urgent` rot = überfällig/heute/HIGH · `soon` = bald (< 3 Tage/MEDIUM) ·
 `planned` = geplant/LOW · `static` = erledigt/ruhend · `positive` = Einnahmen/alles erledigt.
 
+## 7a. Datensicherheit
+
+- Der JSON-Export markiert den Zeitpunkt in `localStorage` (`zentrale-last-backup-at`).
+- `HeuteView` zeigt einen Hinweis, solange es Daten gibt und entweder noch nie oder
+  vor mindestens 14 Tagen gesichert wurde. Der Button öffnet direkt die Einstellungen.
+- `SettingsSheet` zeigt Datenbestand und letzte Sicherung und aktualisiert sich nach dem
+  Export über `useBackupStatus`.
+- Das Backup selbst enthält nur die Daten; der Sicherungszeitpunkt ist gerätebezogen.
+
 ## 8. QA
 
 Nach Änderungen:
@@ -146,8 +156,8 @@ npm run build
 ```
 
 Danach die vier Views, Quick-Add, Abhaken (inkl. Nachfolger), Fixposten buchen/rückgängig,
-Budget, Suche und Backup-Import im Browser prüfen. Testdaten vor der Abgabe über
-Einstellungen oder Browser-Speicher löschen.
+Budget, Suche, Backup-Export/-Import und die Backup-Erinnerung im Browser prüfen.
+Testdaten vor der Abgabe über Einstellungen oder Browser-Speicher löschen.
 
 **Wichtig:** Bei Shell-/Asset-Änderungen `CACHE` in `public/sw.js` bumpen, sonst sehen
 installierte Geräte die alte Version.

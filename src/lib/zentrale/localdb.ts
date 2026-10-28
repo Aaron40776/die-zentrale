@@ -847,3 +847,32 @@ export function downloadCsv(transactions: TransactionItem[]): void {
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+// ---------------------------- Sicherungs-Status ----------------------------
+
+const LAST_BACKUP_KEY = 'zentrale-last-backup-at'
+
+/** Zeitpunkt des letzten JSON-Exports auf diesem Gerät (nicht Teil des Backups). */
+export function getLastBackupAt(): number | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(LAST_BACKUP_KEY)
+    const value = raw ? Number(raw) : NaN
+    return Number.isFinite(value) && value > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+/** Wird nach einem erfolgreich angestoßenen Export aufgerufen. */
+export function markBackupExported(at = Date.now()): number {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(LAST_BACKUP_KEY, String(at))
+    } catch {
+      /* privater Modus o. Ä. – der Export selbst funktioniert trotzdem */
+    }
+  }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('zentrale-backup-updated'))
+  return at
+}

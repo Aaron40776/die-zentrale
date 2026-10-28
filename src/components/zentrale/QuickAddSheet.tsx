@@ -39,7 +39,7 @@ interface RecognitionLike {
 }
 type RecognitionCtor = new () => RecognitionLike
 
-/** Quick-Capture: die zentrale +-Taste. Oben KI-Schnelleingabe (tippen oder diktieren), darunter die vier Reiter. */
+/** Quick-Capture: die zentrale +-Taste. Oben lokale Schnelleingabe (tippen oder diktieren), darunter die vier Reiter. */
 export function QuickAddSheet({
   open,
   onOpenChange,
@@ -104,7 +104,7 @@ export function QuickAddSheet({
     onOpenChange(next)
   }
 
-  /** Schnelleingabe: lokale deutsche Erkennung zuerst (sofort/offline), Server nur als Fallback. */
+  /** Schnelleingabe: lokale deutsche Erkennung, sofort und ohne Netz. */
   async function runParse(textOverride?: string) {
     const text = (textOverride ?? smart).trim()
     if (!text || parsing) return
@@ -126,7 +126,7 @@ export function QuickAddSheet({
     setSmart('')
     toast({
       title: local ? 'Lokal erkannt.' : 'Vorschau ausgefüllt.',
-      description: local ? 'Ohne KI erkannt – bitte kurz prüfen.' : 'Bitte kurz prüfen und speichern.',
+      description: local ? 'Lokal erkannt – bitte kurz prüfen.' : 'Bitte kurz prüfen und speichern.',
     })
   }
 
@@ -244,7 +244,7 @@ export function QuickAddSheet({
           <p className="mt-1.5 text-[11px] leading-snug text-stone-500">
             {listening
               ? 'Die Zentrale hört zu – sprich deinen Eintrag in einem Satz.'
-              : 'Kurz eintippen oder Mikrofon antippen – Typ, Datum & Betrag werden erkannt, auch ohne KI-Verbindung.'}
+              : 'Kurz eintippen oder Mikrofon antippen – Typ, Datum & Betrag werden erkannt, auch offline.'}
           </p>
         </div>
         <div className="px-4">

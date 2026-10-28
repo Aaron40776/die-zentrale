@@ -132,7 +132,7 @@ export const PRIORITY_TONE: Record<Priority, Tone> = {
   LOW: 'planned',
 }
 
-// KI-Schnelleingabe: strukturiertes Ergebnis von /api/parse
+// Ergebnis der lokalen Schnelleingabe
 export type ParsedEntry =
   | { kind: 'event'; title: string; date: string; time: string | null; place: string | null; priority: Priority; yearly: boolean; recurring?: Recurring }
   | { kind: 'task'; title: string; dueDate: string | null; priority: Priority; recurring: Recurring }

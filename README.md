@@ -27,6 +27,7 @@ und alles andere ist maximal zwei Tipps entfernt.
 - **Notizen** — mit Pins
 - **Schnelleingabe** — eine Zeile tippen oder diktieren → Tab + Felder werden vorausgefüllt.
   Die deutsche Erkennung läuft **komplett lokal und offline**.
+- **Backup-Erinnerung** — zeigt, wenn Daten nur auf dem Gerät liegen und die letzte Sicherung fehlt oder älter als 14 Tage ist
 - **Rückgängig** — Löschen und Fixposten-Buchen zeigen einen Rückgängig-Toast
 - **Globale Suche**, **Duplizieren**, **JSON-Backup Export/Import**, **CSV-Export**
 - **PWA** — installierbar, offline nutzbar, Homescreen-Shortcuts, App-Badge,
@@ -82,5 +83,5 @@ Das hat eine wichtige Konsequenz:
 
 ## Projekt-Status
 
-**v10 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
+**v11 · Local-First** — statischer Export, IndexedDB, offline-fähig. Details für
 Weiterentwicklung: [`AI_CONTEXT.md`](AI_CONTEXT.md).

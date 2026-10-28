@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CalendarCheck, Check, Download, FileSpreadsheet, Info, Palette, Upload } from 'lucide-react'
+import { CalendarCheck, Check, Download, FileSpreadsheet, Info, Palette, ShieldCheck, Upload } from 'lucide-react'
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { ImportSheet } from '@/components/zentrale/ImportSheet'
 import { dayKey } from '@/lib/zentrale/date'
-import { downloadCsv, getBudget } from '@/lib/zentrale/localdb'
+import { downloadCsv, getBudget, markBackupExported } from '@/lib/zentrale/localdb'
+import { useLastBackupAt } from '@/lib/zentrale/useBackupStatus'
 import type { EventItem, NoteItem, TaskItem, TransactionItem } from '@/lib/zentrale/types'
 import { cn } from '@/lib/utils'
 
@@ -98,6 +99,7 @@ function exportBackup(events: EventItem[], tasks: TaskItem[], transactions: Tran
     a.click()
     a.remove()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
+    markBackupExported()
   }
 }
 
@@ -108,8 +110,13 @@ function exportBackup(events: EventItem[], tasks: TaskItem[], transactions: Tran
 export function SettingsSheet({ open, onOpenChange, events, tasks, transactions, notes, onImported }: Props) {
   const [importOpen, setImportOpen] = useState(false)
   const [accent, setAccent] = useState<AccentId>('gold')
+  const lastBackup = useLastBackupAt()
+  const entryCount = events.length + tasks.length + transactions.length + notes.length
+  const backupLabel = lastBackup
+    ? `Zuletzt gesichert: ${new Date(lastBackup).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+    : 'Noch keine Sicherung angelegt'
 
-  // Aktuelle Auswahl beim Öffnen übernehmen (wird vom Früh-Skript im <body> gesetzt)
+  // Aktuelle Akzentwahl beim Öffnen übernehmen.
   useEffect(() => {
     if (!open) return
     queueMicrotask(() => {
@@ -163,6 +170,11 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
                   hint="Für Excel oder Numbers – Semikolon-getrennt, deutsche Zahlen."
                   onClick={() => downloadCsv(transactions)}
                 />
+                <Row
+                  icon={ShieldCheck}
+                  title="Nur auf diesem Gerät"
+                  hint={`${entryCount} ${entryCount === 1 ? 'Eintrag' : 'Einträge'} in diesem Browser · ${backupLabel}.`}
+                />
               </div>
             </section>
 
@@ -214,7 +226,7 @@ export function SettingsSheet({ open, onOpenChange, events, tasks, transactions,
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-foreground">Die Zentrale</span>
-                    <span className="block text-xs text-muted-foreground">Version 9 · Dark Edition · nur auf diesem Gerät</span>
+                    <span className="block text-xs text-muted-foreground">Version 11 · Local-First · nur auf diesem Gerät</span>
                   </span>
                 </div>
               </div>
