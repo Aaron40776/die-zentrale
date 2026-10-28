@@ -52,6 +52,7 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
   const { toast } = useToast()
   const [filter, setFilter] = useState<Filter>('alle')
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+  const [flowType, setFlowType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE')
   const [monthOffset, setMonthOffset] = useState(0) // 0 = laufender Monat
 
   // Monatsbudget
@@ -353,10 +354,13 @@ export function FinanzenView({ transactions, loading, onEdit, onChanged, onQuick
           </SectionTitle>
           {hasFlow ? (
             <MoneyFlow
-              income={incomeCategories}
-              expenses={expenseCategories}
-              inSum={inSum}
-              outSum={outSum}
+              type={flowType}
+              onTypeChange={(next) => {
+                setFlowType(next)
+                setCategoryFilter(null)
+              }}
+              categories={flowType === 'EXPENSE' ? expenseCategories : incomeCategories}
+              total={flowType === 'EXPENSE' ? outSum : inSum}
               activeCategory={categoryFilter}
               onCategory={(category) => {
                 const next = categoryFilter === category ? null : category
