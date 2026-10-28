@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Check, ListTodo, MoveHorizontal, Pin, Search, StickyNote, X } from 'lucide-react'
+import { Check, ListTodo, MoveHorizontal, Pin, Search, StickyNote, Trash2, X } from 'lucide-react'
 import { EmptyHint, SectionTitle, Segmented, SkeletonRow } from '@/components/zentrale/bits'
 import { TaskRow } from '@/components/zentrale/rows'
 import { dayDiff, fmtShortDate } from '@/lib/zentrale/date'
@@ -16,6 +16,8 @@ interface Props {
   onToggleTask: (t: TaskItem) => void
   onSnoozeTask: (t: TaskItem) => void
   onDeleteTask?: (t: TaskItem) => void
+  /** Erledigte Aufgaben endgültig aufräumen. */
+  onClearDone?: () => void
   /** Öffnet die Schnellerfassung mit passendem Reiter (für Aktionen im leeren Zustand). */
   onQuickAdd?: (tab: QuickTab) => void
   onSearch?: () => void
@@ -24,7 +26,7 @@ interface Props {
 const PRIORITY_ORDER = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const
 
 /** Aufgaben & Notizen: Erledigt-Mechanik + angeheftete Notizen oben. */
-export function AufgabenView({ tasks, notes, loading, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onQuickAdd, onSearch }: Props) {
+export function AufgabenView({ tasks, notes, loading, onEdit, onToggleTask, onSnoozeTask, onDeleteTask, onClearDone, onQuickAdd, onSearch }: Props) {
   const [tab, setTab] = useState<'aufgaben' | 'notizen'>('aufgaben')
   const [showDone, setShowDone] = useState(false)
   // Wisch-Geste einmalig zeigen, bis sie weggeklickt wird (pro Gerät gemerkt)
@@ -155,14 +157,26 @@ export function AufgabenView({ tasks, notes, loading, onEdit, onToggleTask, onSn
 
               {done.length > 0 && (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => setShowDone((s) => !s)}
-                    aria-expanded={showDone}
-                    className="hit mt-4 py-1 text-xs font-semibold text-stone-500 underline-offset-2 hover:underline"
-                  >
-                    {showDone ? 'Erledigte ausblenden' : `Erledigte anzeigen (${done.length})`}
-                  </button>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowDone((s) => !s)}
+                      aria-expanded={showDone}
+                      className="hit py-1 text-xs font-semibold text-stone-500 underline-offset-2 hover:underline"
+                    >
+                      {showDone ? 'Erledigte ausblenden' : `Erledigte anzeigen (${done.length})`}
+                    </button>
+                    {onClearDone && (
+                      <button
+                        type="button"
+                        onClick={onClearDone}
+                        className="hit inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold text-red-400/90 transition-colors hover:bg-red-500/10 hover:text-red-300"
+                      >
+                        <Trash2 className="h-3 w-3" aria-hidden />
+                        Erledigte löschen
+                      </button>
+                    )}
+                  </div>
                   {showDone && (
                     <div className="mt-2 space-y-2">
                       {done.map((t) => (

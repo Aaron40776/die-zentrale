@@ -201,6 +201,22 @@ export default function Page() {
     deleteWithUndo({ kind: 'task', task: t })
   }
 
+  async function clearDoneTasks() {
+    const done = z.tasks.filter((task) => task.done)
+    if (done.length === 0) return
+    if (!window.confirm(`${done.length} erledigte ${done.length === 1 ? 'Aufgabe' : 'Aufgaben'} endgültig löschen?`)) return
+    const result = await apiSendJson<{ count: number }>('/api/tasks/completed', 'DELETE')
+    if (!result) {
+      toast({ title: 'Aufräumen fehlgeschlagen.', variant: 'destructive' })
+      return
+    }
+    await z.refresh()
+    toast({
+      title: `${result.count} erledigte ${result.count === 1 ? 'Aufgabe' : 'Aufgaben'} gelöscht.`,
+      description: 'Die offenen Aufgaben und Notizen bleiben erhalten.',
+    })
+  }
+
   async function restoreRecovery() {
     const result = await restoreRecoverySnapshot()
     if (!result.ok) {
@@ -348,6 +364,7 @@ export default function Page() {
               onSnoozeTask={snoozeTask}
               onDeleteTask={deleteTask}
               onQuickAdd={openQuickAdd}
+              onClearDone={() => void clearDoneTasks()}
               onSearch={() => setSearchOpen(true)}
             />
           )}
